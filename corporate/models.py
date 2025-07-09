@@ -1322,3 +1322,201 @@ class StructureOwnership(models.Model):
         if self.parent == self.child:
             raise ValidationError("Entity cannot own itself")
 
+
+
+
+class StructureNode(models.Model):
+    """
+    Represents a specific instance of an Entity within a Structure.
+    This allows Entity templates to be reused across multiple structures.
+    """
+    
+    # Reference to the Entity template
+    entity_template = models.ForeignKey(
+        Entity,
+        on_delete=models.CASCADE,
+        related_name="structure_instances",
+        help_text="Entity template this node is based on"
+    )
+    
+    # Structure this node belongs to
+    structure = models.ForeignKey(
+        Structure,
+        on_delete=models.CASCADE,
+        related_name="nodes",
+        help_text="Structure this node belongs to"
+    )
+    
+    # Instance-specific customizations
+    custom_name = models.CharField(
+        max_length=200,
+        help_text="Custom name for this specific instance"
+    )
+    
+    total_shares = models.PositiveIntegerField(
+        help_text="Total number of shares for this instance"
+    )
+    
+    corporate_name = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Official corporate name for this instance"
+    )
+    
+    hash_number = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Registration or hash number"
+    )
+    
+    # Hierarchy information
+    level = models.PositiveIntegerField(
+        help_text="Level in the structure hierarchy (1 = top level)"
+    )
+    
+    parent_node = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="child_nodes",
+        help_text="Parent node in the hierarchy"
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Structure Node"
+        verbose_name_plural = "Structure Nodes"
+        unique_together = ["structure", "custom_name"]
+        ordering = ["level", "custom_name"]
+    
+    def __str__(self):
+        return f"{self.custom_name} (Level {self.level}) - {self.structure.name}"
+    
+    def get_entity_type_display(self):
+        """Get the entity type from the template"""
+        return self.entity_template.get_entity_type_display()
+    
+    def get_jurisdiction_display(self):
+        """Get the jurisdiction from the template"""
+        return self.entity_template.get_jurisdiction_display()
+    
+    def get_children(self):
+        """Get all child nodes"""
+        return self.child_nodes.all()
+    
+    def get_ownership_percentage(self):
+        """Calculate total ownership percentage from all owners"""
+        total = self.owned_by.aggregate(
+            total=models.Sum('ownership_percentage')
+        )['total'] or 0
+        return total
+
+
+class NodeOwnership(models.Model):
+    """
+    Represents ownership relationships in the new structure system.
+    Supports both Party→Node and Node→Node ownership.
+    """
+    
+    # Owner can be either a Party (UBO) or another StructureNode (Entity→Entity)
+    owner_party = models.ForeignKey(
+        'parties.Party',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="owned_nodes",
+        help_text="Party that owns this node (UBO)"
+    )
+    
+    owner_node = models.ForeignKey(
+        StructureNode,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="owned_nodes",
+        help_text="Node that owns this node (Entity→Entity)"
+    )
+    
+    # The node being owned
+    owned_node = models.ForeignKey(
+        StructureNode,
+        on_delete=models.CASCADE,
+        related_name="owned_by",
+        help_text="Node being owned"
+    )
+    
+    # Ownership details
+    ownership_percentage = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        validators=[MinValueValidator(0.01), MaxValueValidator(100.00)],
+        help_text="Ownership percentage (0.01 to 100.00)"
+    )
+    
+    owned_shares = models.PositiveIntegerField(
+        help_text="Number of shares owned"
+    )
+    
+    share_value_usd = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0.00,
+        help_text="Value per share in USD"
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Node Ownership"
+        verbose_name_plural = "Node Ownerships"
+        ordering = ["-ownership_percentage"]
+    
+    def __str__(self):
+        owner_name = self.owner_party.name if self.owner_party else self.owner_node.custom_name
+        return f"{owner_name} owns {self.ownership_percentage}% of {self.owned_node.custom_name}"
+    
+    def clean(self):
+        """Custom validations"""
+        super().clean()
+        
+        # Must have either owner_party or owner_node, but not both
+        if not self.owner_party and not self.owner_node:
+            raise ValidationError("Must specify either owner_party or owner_node")
+        
+        if self.owner_party and self.owner_node:
+            raise ValidationError("Cannot specify both owner_party and owner_node")
+        
+        # Prevent self-ownership for nodes
+        if self.owner_node and self.owner_node == self.owned_node:
+            raise ValidationError("Node cannot own itself")
+        
+        # Validate shares don't exceed total shares
+        if self.owned_shares > self.owned_node.total_shares:
+            raise ValidationError("Owned shares cannot exceed total shares")
+    
+    def get_owner_name(self):
+        """Get the name of the owner (party or node)"""
+        if self.owner_party:
+            return self.owner_party.name
+        elif self.owner_node:
+            return self.owner_node.custom_name
+        return "Unknown Owner"
+    
+    def get_owner_type(self):
+        """Get the type of owner"""
+        if self.owner_party:
+            return "Party"
+        elif self.owner_node:
+            return "Entity"
+        return "Unknown"
+    
+    def get_total_value_usd(self):
+        """Calculate total value of this ownership"""
+        return self.owned_shares * self.share_value_usd
+

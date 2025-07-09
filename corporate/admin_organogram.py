@@ -549,9 +549,9 @@ class StructureOrganogramAdmin(admin.ModelAdmin):
             '<div style="width: 60px; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden;">'
             '<div style="width: {}%; height: 100%; background: {}; transition: width 0.3s ease;"></div>'
             '</div>'
-            '<span style="color: {}; font-weight: bold;">{:.0f}%</span>'
+            '<span style="color: {}; font-weight: bold;">{}%</span>'
             '</div>',
-            percentage, color, color, percentage
+            percentage, color, color, int(percentage)
         )
     completion_percentage.short_description = 'Completion'
     
