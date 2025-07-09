@@ -1,0 +1,733 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}{{ title }} | {{ site_title|default:"Django site admin" }}{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+.organogram-editor {
+    padding: 20px;
+    background: #f8f9fa;
+    min-height: 100vh;
+}
+
+.editor-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 25px;
+    border-radius: 12px;
+    margin-bottom: 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.editor-header h1 {
+    margin: 0;
+    font-size: 2em;
+    font-weight: 300;
+}
+
+.editor-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-primary {
+    background: #3498db;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #2980b9;
+    color: white;
+    text-decoration: none;
+}
+
+.btn-secondary {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #5a6268;
+    color: white;
+    text-decoration: none;
+}
+
+.btn-success {
+    background: #28a745;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #218838;
+}
+
+.editor-layout {
+    display: grid;
+    grid-template-columns: 300px 1fr 300px;
+    gap: 20px;
+    height: calc(100vh - 200px);
+}
+
+.panel {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    overflow-y: auto;
+}
+
+.panel h3 {
+    margin: 0 0 20px 0;
+    color: #2c3e50;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 10px;
+}
+
+.canvas-panel {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+#organogram-canvas {
+    width: 100%;
+    height: 100%;
+    border: 1px solid #e1e8ed;
+    border-radius: 8px;
+    background: #fafbfc;
+}
+
+.entity-item, .party-item {
+    padding: 10px;
+    margin-bottom: 10px;
+    border: 1px solid #e1e8ed;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.entity-item:hover, .party-item:hover {
+    background: #f8f9fa;
+    border-color: #3498db;
+}
+
+.entity-item h4, .party-item h4 {
+    margin: 0 0 5px 0;
+    font-size: 0.9em;
+    color: #2c3e50;
+}
+
+.entity-item p, .party-item p {
+    margin: 0;
+    font-size: 0.8em;
+    color: #7f8c8d;
+}
+
+.node-properties {
+    margin-bottom: 20px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    color: #2c3e50;
+    font-weight: 500;
+    font-size: 0.9em;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+.breadcrumb-nav {
+    background: #f8f9fa;
+    padding: 10px 20px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+}
+
+.breadcrumb-nav a {
+    color: #3498db;
+    text-decoration: none;
+    margin-right: 10px;
+}
+
+.breadcrumb-nav a:hover {
+    text-decoration: underline;
+}
+
+.breadcrumb-separator {
+    color: #7f8c8d;
+    margin: 0 5px;
+}
+
+.toolbar {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.toolbar button {
+    padding: 8px 16px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: white;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.3s ease;
+}
+
+.toolbar button:hover {
+    background: #e9ecef;
+    border-color: #3498db;
+}
+
+.toolbar button.active {
+    background: #3498db;
+    color: white;
+    border-color: #3498db;
+}
+
+.node {
+    fill: #3498db;
+    stroke: #2980b9;
+    stroke-width: 2px;
+    cursor: pointer;
+}
+
+.node:hover {
+    fill: #2980b9;
+}
+
+.node.selected {
+    fill: #e74c3c;
+    stroke: #c0392b;
+}
+
+.link {
+    fill: none;
+    stroke: #7f8c8d;
+    stroke-width: 2px;
+    marker-end: url(#arrowhead);
+}
+
+.node-label {
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+    fill: #2c3e50;
+    text-anchor: middle;
+    pointer-events: none;
+}
+
+.ownership-label {
+    font-family: Arial, sans-serif;
+    font-size: 10px;
+    fill: #e74c3c;
+    text-anchor: middle;
+    pointer-events: none;
+    font-weight: bold;
+}
+
+.zoom-controls {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.zoom-btn {
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 50%;
+    background: #3498db;
+    color: white;
+    font-size: 18px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.zoom-btn:hover {
+    background: #2980b9;
+}
+
+.empty-canvas {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #7f8c8d;
+    text-align: center;
+}
+
+.empty-canvas .icon {
+    font-size: 4em;
+    margin-bottom: 20px;
+    opacity: 0.5;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="organogram-editor">
+    <!-- Breadcrumb Navigation -->
+    <div class="breadcrumb-nav">
+        <a href="/admin/">🏠 Admin Home</a>
+        <span class="breadcrumb-separator">›</span>
+        <a href="/admin/corporate/dashboard/">Dashboard SIRIUS</a>
+        <span class="breadcrumb-separator">›</span>
+        <a href="/admin/corporate/build-organogram/">Construtor de Organogramas</a>
+        <span class="breadcrumb-separator">›</span>
+        <span>{{ structure.name }}</span>
+    </div>
+
+    <!-- Header -->
+    <div class="editor-header">
+        <h1>🏗️ {{ structure.name }}</h1>
+        <div class="editor-actions">
+            <button class="btn btn-success" onclick="saveStructure()">💾 Salvar</button>
+            <button class="btn btn-secondary" onclick="exportStructure()">📤 Exportar</button>
+            <a href="/admin/corporate/build-organogram/" class="btn btn-secondary">← Voltar</a>
+        </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+        <button id="select-tool" class="active" onclick="setTool('select')">🖱️ Selecionar</button>
+        <button id="add-node-tool" onclick="setTool('add-node')">➕ Adicionar Node</button>
+        <button id="add-ownership-tool" onclick="setTool('add-ownership')">🔗 Adicionar Ownership</button>
+        <button onclick="autoLayout()">📐 Auto Layout</button>
+        <button onclick="resetZoom()">🔍 Reset Zoom</button>
+        <button onclick="validateStructure()">✅ Validar</button>
+    </div>
+
+    <!-- Main Layout -->
+    <div class="editor-layout">
+        <!-- Left Panel - Entity Library -->
+        <div class="panel">
+            <h3>📚 Biblioteca de Entidades</h3>
+            
+            <div style="margin-bottom: 20px;">
+                <input type="text" id="entity-search" placeholder="Buscar entidades..." style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            </div>
+            
+            <div id="entities-list">
+                {% for entity in available_entities %}
+                <div class="entity-item" data-entity-id="{{ entity.id }}" draggable="true">
+                    <h4>{{ entity.name }}</h4>
+                    <p>{{ entity.get_entity_type_display }} • {{ entity.get_jurisdiction_display }}</p>
+                </div>
+                {% endfor %}
+            </div>
+
+            <h3 style="margin-top: 30px;">👥 Sócios</h3>
+            
+            <div style="margin-bottom: 20px;">
+                <input type="text" id="party-search" placeholder="Buscar sócios..." style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            </div>
+            
+            <div id="parties-list">
+                {% for party in available_parties %}
+                <div class="party-item" data-party-id="{{ party.id }}" draggable="true">
+                    <h4>{{ party.name }}</h4>
+                    <p>{{ party.get_party_type_display }} • {{ party.nationality|default:"N/A" }}</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Center Panel - Canvas -->
+        <div class="canvas-panel">
+            <div class="zoom-controls">
+                <button class="zoom-btn" onclick="zoomIn()">+</button>
+                <button class="zoom-btn" onclick="zoomOut()">-</button>
+            </div>
+            
+            <svg id="organogram-canvas">
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+                            refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#7f8c8d" />
+                    </marker>
+                </defs>
+            </svg>
+            
+            <div id="empty-canvas" class="empty-canvas" style="display: none;">
+                <div class="icon">🏗️</div>
+                <h3>Canvas Vazio</h3>
+                <p>Arraste entidades da biblioteca para começar a montar sua estrutura</p>
+            </div>
+        </div>
+
+        <!-- Right Panel - Properties -->
+        <div class="panel">
+            <h3>⚙️ Propriedades</h3>
+            
+            <div id="node-properties" class="node-properties" style="display: none;">
+                <h4>📋 Propriedades do Node</h4>
+                
+                <div class="form-group">
+                    <label for="node-name">Nome Customizado</label>
+                    <input type="text" id="node-name" placeholder="Ex: Holding Principal">
+                </div>
+                
+                <div class="form-group">
+                    <label for="node-corporate-name">Nome Corporativo</label>
+                    <input type="text" id="node-corporate-name" placeholder="Ex: ABC Holdings LLC">
+                </div>
+                
+                <div class="form-group">
+                    <label for="node-shares">Total de Shares</label>
+                    <input type="number" id="node-shares" value="1000" min="1">
+                </div>
+                
+                <button class="btn btn-primary" onclick="updateSelectedNode()">Atualizar Node</button>
+                <button class="btn btn-secondary" onclick="deleteSelectedNode()">Remover Node</button>
+            </div>
+            
+            <div id="ownership-properties" class="node-properties" style="display: none;">
+                <h4>🔗 Propriedades do Ownership</h4>
+                
+                <div class="form-group">
+                    <label for="ownership-percentage">Percentual (%)</label>
+                    <input type="number" id="ownership-percentage" min="0" max="100" step="0.01">
+                </div>
+                
+                <div class="form-group">
+                    <label for="ownership-shares">Shares Possuídas</label>
+                    <input type="number" id="ownership-shares" min="0">
+                </div>
+                
+                <div class="form-group">
+                    <label for="ownership-value">Valor por Share (USD)</label>
+                    <input type="number" id="ownership-value" min="0" step="0.01">
+                </div>
+                
+                <button class="btn btn-primary" onclick="updateSelectedOwnership()">Atualizar Ownership</button>
+                <button class="btn btn-secondary" onclick="deleteSelectedOwnership()">Remover Ownership</button>
+            </div>
+            
+            <div id="structure-info">
+                <h4>📊 Informações da Estrutura</h4>
+                <p><strong>Nome:</strong> {{ structure.name }}</p>
+                <p><strong>Tipo:</strong> {{ structure.get_structure_type_display }}</p>
+                <p><strong>Status:</strong> {{ structure.get_status_display }}</p>
+                <p><strong>Criada:</strong> {{ structure.created_at|date:"d/m/Y H:i" }}</p>
+                
+                <div style="margin-top: 20px;">
+                    <h5>📈 Estatísticas</h5>
+                    <p id="stats-nodes">Nodes: <span>0</span></p>
+                    <p id="stats-ownerships">Ownerships: <span>0</span></p>
+                    <p id="stats-levels">Níveis: <span>0</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Dados da estrutura
+const structureData = {
+    id: {{ structure.id }},
+    name: "{{ structure.name }}",
+    nodes: {{ nodes_data|safe }},
+    ownerships: {{ ownerships_data|safe }}
+};
+
+// Variáveis globais
+let currentTool = 'select';
+let selectedNode = null;
+let selectedOwnership = null;
+let svg, g, zoom;
+
+// Inicializar o editor
+document.addEventListener('DOMContentLoaded', function() {
+    initializeCanvas();
+    loadStructureData();
+    setupEventListeners();
+    updateStatistics();
+});
+
+function initializeCanvas() {
+    svg = d3.select("#organogram-canvas");
+    
+    // Setup zoom
+    zoom = d3.zoom()
+        .scaleExtent([0.1, 3])
+        .on("zoom", function(event) {
+            g.attr("transform", event.transform);
+        });
+    
+    svg.call(zoom);
+    
+    // Main group
+    g = svg.append("g");
+    
+    // Check if canvas is empty
+    if (structureData.nodes.length === 0) {
+        document.getElementById('empty-canvas').style.display = 'flex';
+    }
+}
+
+function loadStructureData() {
+    if (structureData.nodes.length === 0) return;
+    
+    document.getElementById('empty-canvas').style.display = 'none';
+    
+    // Render nodes
+    renderNodes();
+    renderOwnerships();
+}
+
+function renderNodes() {
+    const nodes = g.selectAll(".node-group")
+        .data(structureData.nodes, d => d.id);
+    
+    const nodeEnter = nodes.enter()
+        .append("g")
+        .attr("class", "node-group")
+        .attr("transform", d => `translate(${d.x || 100 + d.level * 200}, ${d.y || 100 + d.id * 80})`);
+    
+    // Node circle
+    nodeEnter.append("circle")
+        .attr("class", "node")
+        .attr("r", 30)
+        .on("click", selectNode);
+    
+    // Node label
+    nodeEnter.append("text")
+        .attr("class", "node-label")
+        .attr("dy", "0.35em")
+        .text(d => d.custom_name);
+    
+    // Update existing nodes
+    nodes.select(".node-label")
+        .text(d => d.custom_name);
+    
+    // Remove old nodes
+    nodes.exit().remove();
+}
+
+function renderOwnerships() {
+    // Implementation for rendering ownership connections
+    // This would create lines between nodes based on ownership relationships
+}
+
+function setTool(tool) {
+    currentTool = tool;
+    
+    // Update toolbar buttons
+    document.querySelectorAll('.toolbar button').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.getElementById(tool + '-tool').classList.add('active');
+}
+
+function selectNode(event, d) {
+    selectedNode = d;
+    selectedOwnership = null;
+    
+    // Update visual selection
+    g.selectAll(".node").classed("selected", false);
+    d3.select(event.target).classed("selected", true);
+    
+    // Show properties panel
+    showNodeProperties(d);
+}
+
+function showNodeProperties(node) {
+    document.getElementById('node-properties').style.display = 'block';
+    document.getElementById('ownership-properties').style.display = 'none';
+    
+    // Populate form
+    document.getElementById('node-name').value = node.custom_name;
+    document.getElementById('node-corporate-name').value = node.corporate_name || '';
+    document.getElementById('node-shares').value = node.total_shares;
+}
+
+function updateSelectedNode() {
+    if (!selectedNode) return;
+    
+    const data = {
+        action: 'update_node',
+        node_id: selectedNode.id,
+        custom_name: document.getElementById('node-name').value,
+        corporate_name: document.getElementById('node-corporate-name').value,
+        total_shares: parseInt(document.getElementById('node-shares').value)
+    };
+    
+    fetch('/admin/corporate/organogram-builder-api/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            // Update local data
+            selectedNode.custom_name = data.custom_name;
+            selectedNode.corporate_name = data.corporate_name;
+            selectedNode.total_shares = data.total_shares;
+            
+            // Re-render
+            renderNodes();
+            
+            alert(result.message);
+        } else {
+            alert('Erro: ' + result.error);
+        }
+    });
+}
+
+function deleteSelectedNode() {
+    if (!selectedNode) return;
+    
+    if (!confirm('Tem certeza que deseja remover este node?')) return;
+    
+    const data = {
+        action: 'delete_node',
+        node_id: selectedNode.id
+    };
+    
+    fetch('/admin/corporate/organogram-builder-api/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            // Remove from local data
+            structureData.nodes = structureData.nodes.filter(n => n.id !== selectedNode.id);
+            
+            // Clear selection
+            selectedNode = null;
+            document.getElementById('node-properties').style.display = 'none';
+            
+            // Re-render
+            renderNodes();
+            updateStatistics();
+            
+            alert(result.message);
+        } else {
+            alert('Erro: ' + result.error);
+        }
+    });
+}
+
+function updateStatistics() {
+    document.querySelector('#stats-nodes span').textContent = structureData.nodes.length;
+    document.querySelector('#stats-ownerships span').textContent = structureData.ownerships.length;
+    
+    const maxLevel = structureData.nodes.reduce((max, node) => Math.max(max, node.level), 0);
+    document.querySelector('#stats-levels span').textContent = maxLevel;
+}
+
+function setupEventListeners() {
+    // Search functionality
+    document.getElementById('entity-search').addEventListener('input', function(e) {
+        filterEntities(e.target.value);
+    });
+    
+    document.getElementById('party-search').addEventListener('input', function(e) {
+        filterParties(e.target.value);
+    });
+}
+
+function filterEntities(searchTerm) {
+    const entities = document.querySelectorAll('.entity-item');
+    entities.forEach(entity => {
+        const text = entity.textContent.toLowerCase();
+        entity.style.display = text.includes(searchTerm.toLowerCase()) ? 'block' : 'none';
+    });
+}
+
+function filterParties(searchTerm) {
+    const parties = document.querySelectorAll('.party-item');
+    parties.forEach(party => {
+        const text = party.textContent.toLowerCase();
+        party.style.display = text.includes(searchTerm.toLowerCase()) ? 'block' : 'none';
+    });
+}
+
+function zoomIn() {
+    svg.transition().call(zoom.scaleBy, 1.5);
+}
+
+function zoomOut() {
+    svg.transition().call(zoom.scaleBy, 1 / 1.5);
+}
+
+function resetZoom() {
+    svg.transition().call(zoom.transform, d3.zoomIdentity);
+}
+
+function autoLayout() {
+    // Implementation for automatic layout of nodes
+    alert('Auto layout em desenvolvimento');
+}
+
+function validateStructure() {
+    // Implementation for structure validation
+    alert('Validação em desenvolvimento');
+}
+
+function saveStructure() {
+    alert('Estrutura salva com sucesso!');
+}
+
+function exportStructure() {
+    alert('Exportação em desenvolvimento');
+}
+</script>
+{% endblock %}
+

@@ -32,10 +32,26 @@ from .views_organogram_printing import (
     download_report,
     preview_organogram
 )
+from .admin_navigation import sirius_main_dashboard
+from .views_organogram_builder import (
+    organogram_builder_view,
+    organogram_builder_structure,
+    organogram_builder_api,
+    get_structure_data_api
+)
 
 app_name = 'corporate'
 
 urlpatterns = [
+    # Dashboard Principal SIRIUS
+    path('dashboard/', sirius_main_dashboard, name='sirius_dashboard'),
+    
+    # Organogram Builder (Fase 1)
+    path('build-organogram/', organogram_builder_view, name='organogram_builder'),
+    path('build-organogram/<int:structure_id>/', organogram_builder_structure, name='organogram_builder_structure'),
+    path('organogram-builder-api/', organogram_builder_api, name='organogram_builder_api'),
+    path('api/structure-data/<int:structure_id>/', get_structure_data_api, name='get_structure_data_api'),
+    
     # Original entity library
     path('entity-library/', entity_library_view, name='entity_library'),
     

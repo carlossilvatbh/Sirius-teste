@@ -1,0 +1,478 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}{{ title }} | {{ site_title|default:"Django site admin" }}{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+.organogram-builder {
+    padding: 20px;
+    background: #f8f9fa;
+    min-height: 100vh;
+}
+
+.builder-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 30px;
+    border-radius: 12px;
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.builder-header h1 {
+    margin: 0 0 10px 0;
+    font-size: 2.5em;
+    font-weight: 300;
+}
+
+.builder-header p {
+    margin: 0;
+    opacity: 0.9;
+    font-size: 1.1em;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+}
+
+.stat-number {
+    font-size: 2.5em;
+    font-weight: bold;
+    color: #3498db;
+    margin-bottom: 10px;
+}
+
+.stat-label {
+    color: #7f8c8d;
+    font-size: 0.9em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.builder-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.action-card {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+}
+
+.action-card:hover {
+    transform: translateY(-5px);
+}
+
+.action-card h3 {
+    color: #2c3e50;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+}
+
+.action-card h3 .icon {
+    font-size: 1.5em;
+    margin-right: 10px;
+}
+
+.action-card p {
+    color: #7f8c8d;
+    margin-bottom: 20px;
+    line-height: 1.5;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 6px;
+    text-decoration: none;
+    display: inline-block;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    color: white;
+    text-decoration: none;
+}
+
+.btn-secondary {
+    background: #6c757d;
+    border: none;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 6px;
+    text-decoration: none;
+    display: inline-block;
+    transition: all 0.3s ease;
+    margin-right: 10px;
+}
+
+.btn-secondary:hover {
+    background: #5a6268;
+    color: white;
+    text-decoration: none;
+}
+
+.structures-list {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.structures-list h3 {
+    color: #2c3e50;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 10px;
+}
+
+.structure-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    border: 1px solid #e1e8ed;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    transition: all 0.3s ease;
+}
+
+.structure-item:hover {
+    background: #f8f9fa;
+    border-color: #3498db;
+}
+
+.structure-info h4 {
+    margin: 0 0 5px 0;
+    color: #2c3e50;
+}
+
+.structure-info p {
+    margin: 0;
+    color: #7f8c8d;
+    font-size: 0.9em;
+}
+
+.structure-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.breadcrumb-nav {
+    background: #f8f9fa;
+    padding: 10px 20px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+}
+
+.breadcrumb-nav a {
+    color: #3498db;
+    text-decoration: none;
+    margin-right: 10px;
+}
+
+.breadcrumb-nav a:hover {
+    text-decoration: underline;
+}
+
+.breadcrumb-separator {
+    color: #7f8c8d;
+    margin: 0 5px;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px;
+    color: #7f8c8d;
+}
+
+.empty-state .icon {
+    font-size: 4em;
+    margin-bottom: 20px;
+    opacity: 0.5;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 5% auto;
+    padding: 30px;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #e1e8ed;
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: #2c3e50;
+}
+
+.close {
+    font-size: 28px;
+    font-weight: bold;
+    color: #aaa;
+    cursor: pointer;
+}
+
+.close:hover {
+    color: #000;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+.form-group input,
+.form-group textarea,
+.form-group select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="organogram-builder">
+    <!-- Breadcrumb Navigation -->
+    <div class="breadcrumb-nav">
+        <a href="/admin/">🏠 Admin Home</a>
+        <span class="breadcrumb-separator">›</span>
+        <a href="/admin/corporate/dashboard/">Dashboard SIRIUS</a>
+        <span class="breadcrumb-separator">›</span>
+        <span>Construtor de Organogramas</span>
+    </div>
+
+    <!-- Header -->
+    <div class="builder-header">
+        <h1>🏗️ Construtor de Organogramas</h1>
+        <p>Interface visual para montar estruturas corporativas complexas</p>
+    </div>
+
+    <!-- Statistics -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-number">{{ stats.total_structures }}</div>
+            <div class="stat-label">Estruturas</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ stats.total_entities }}</div>
+            <div class="stat-label">Templates</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ stats.total_parties }}</div>
+            <div class="stat-label">Sócios</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ stats.total_nodes }}</div>
+            <div class="stat-label">Empresas</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ stats.total_ownerships }}</div>
+            <div class="stat-label">Relacionamentos</div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="builder-actions">
+        <div class="action-card">
+            <h3><span class="icon">🆕</span>Nova Estrutura</h3>
+            <p>Crie uma nova estrutura corporativa do zero com assistente guiado</p>
+            <button class="btn-primary" onclick="openCreateStructureModal()">Criar Estrutura</button>
+        </div>
+        
+        <div class="action-card">
+            <h3><span class="icon">📚</span>Biblioteca de Templates</h3>
+            <p>Acesse templates pré-configurados para acelerar a criação</p>
+            <a href="/admin/corporate/entity-library-enhanced/" class="btn-primary">Acessar Biblioteca</a>
+        </div>
+        
+        <div class="action-card">
+            <h3><span class="icon">📊</span>Visualizar Estruturas</h3>
+            <p>Veja todas as estruturas existentes em formato visual</p>
+            <a href="/corporate/structures/" class="btn-primary">Ver Estruturas</a>
+        </div>
+    </div>
+
+    <!-- Structures List -->
+    <div class="structures-list">
+        <h3>📋 Estruturas Existentes</h3>
+        
+        {% if structures %}
+            {% for structure in structures %}
+            <div class="structure-item">
+                <div class="structure-info">
+                    <h4>{{ structure.name }}</h4>
+                    <p>{{ structure.description|default:"Sem descrição" }} • Criada em {{ structure.created_at|date:"d/m/Y" }}</p>
+                </div>
+                <div class="structure-actions">
+                    <a href="/admin/corporate/build-organogram/{{ structure.id }}/" class="btn-primary">Editar</a>
+                    <a href="/admin/corporate/structure/{{ structure.id }}/change/" class="btn-secondary">Admin</a>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <div class="icon">🏗️</div>
+                <h3>Nenhuma estrutura encontrada</h3>
+                <p>Comece criando sua primeira estrutura corporativa</p>
+                <button class="btn-primary" onclick="openCreateStructureModal()">Criar Primeira Estrutura</button>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal para criar nova estrutura -->
+<div id="createStructureModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>🆕 Nova Estrutura</h3>
+            <span class="close" onclick="closeCreateStructureModal()">&times;</span>
+        </div>
+        <form id="createStructureForm">
+            <div class="form-group">
+                <label for="structureName">Nome da Estrutura *</label>
+                <input type="text" id="structureName" name="name" required placeholder="Ex: Holding Família Silva">
+            </div>
+            <div class="form-group">
+                <label for="structureDescription">Descrição</label>
+                <textarea id="structureDescription" name="description" rows="3" placeholder="Descreva o propósito desta estrutura..."></textarea>
+            </div>
+            <div class="form-group">
+                <label for="structureType">Tipo de Estrutura</label>
+                <select id="structureType" name="structure_type">
+                    <option value="HOLDING">Holding</option>
+                    <option value="TRUST">Trust</option>
+                    <option value="FUND">Fund</option>
+                    <option value="MIXED">Mista</option>
+                </select>
+            </div>
+            <div style="text-align: right; margin-top: 30px;">
+                <button type="button" class="btn-secondary" onclick="closeCreateStructureModal()">Cancelar</button>
+                <button type="submit" class="btn-primary">Criar Estrutura</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openCreateStructureModal() {
+    document.getElementById('createStructureModal').style.display = 'block';
+}
+
+function closeCreateStructureModal() {
+    document.getElementById('createStructureModal').style.display = 'none';
+    document.getElementById('createStructureForm').reset();
+}
+
+// Fechar modal clicando fora
+window.onclick = function(event) {
+    const modal = document.getElementById('createStructureModal');
+    if (event.target == modal) {
+        closeCreateStructureModal();
+    }
+}
+
+// Submit do formulário
+document.getElementById('createStructureForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const data = {
+        action: 'create_structure',
+        name: formData.get('name'),
+        description: formData.get('description'),
+        structure_type: formData.get('structure_type')
+    };
+    
+    fetch('/admin/corporate/organogram-builder-api/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert(result.message);
+            window.location.href = `/admin/corporate/build-organogram/${result.structure_id}/`;
+        } else {
+            alert('Erro: ' + result.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Erro ao criar estrutura');
+    });
+});
+</script>
+{% endblock %}
+

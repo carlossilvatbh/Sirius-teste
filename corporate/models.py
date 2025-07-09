@@ -7,7 +7,8 @@ from datetime import timedelta
 
 class Entity(models.Model):
     """
-    Represents a legal entity (formerly LegalStructure/Structure)
+    Template de Entidade Legal (Entity Template)
+    Representa templates reutilizáveis como Wyoming LLC, Bahamas Fund
     Removed: description field (no longer needed)
     Modified: costs management moved to FINANCIAL_DEPARTMENT app
     Enhanced: template management in Implementation subsection
@@ -377,10 +378,19 @@ class Entity(models.Model):
             return f"{self.compliance_score}%"
         return "Not set"
 
+    class Meta:
+        verbose_name = "Template de Entidade"
+        verbose_name_plural = "Templates de Entidades"
+        ordering = ['name']
+
+    def __str__(self):
+        return f"{self.name} ({self.get_entity_type_display()})"
+
 
 class Structure(models.Model):
     """
-    Represents ownership hierarchies (corporate tree) among Entities and UBOs
+    Estrutura Corporativa
+    Representa hierarquias de propriedade (árvore corporativa) entre Entidades e UBOs
     Purpose: Model complex corporate ownership structures
     """
 
@@ -411,8 +421,8 @@ class Structure(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = "Structure"
-        verbose_name_plural = "Structures"
+        verbose_name = "Estrutura Corporativa"
+        verbose_name_plural = "Estruturas Corporativas"
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["status"]),
@@ -614,8 +624,8 @@ class EntityOwnership(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = "Entity Ownership"
-        verbose_name_plural = "Entity Ownerships"
+        verbose_name = "Registro Legado de Propriedade"
+        verbose_name_plural = "Registros Legados de Propriedade"
         unique_together = ['structure', 'owner_ubo', 'owner_entity', 'owned_entity']
         indexes = [
             models.Index(fields=["structure"]),
@@ -1388,8 +1398,8 @@ class StructureNode(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        verbose_name = "Structure Node"
-        verbose_name_plural = "Structure Nodes"
+        verbose_name = "Instância de Empresa"
+        verbose_name_plural = "Instâncias de Empresas"
         unique_together = ["structure", "custom_name"]
         ordering = ["level", "custom_name"]
     
@@ -1473,8 +1483,8 @@ class NodeOwnership(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        verbose_name = "Node Ownership"
-        verbose_name_plural = "Node Ownerships"
+        verbose_name = "Relacionamento de Propriedade"
+        verbose_name_plural = "Relacionamentos de Propriedade"
         ordering = ["-ownership_percentage"]
     
     def __str__(self):

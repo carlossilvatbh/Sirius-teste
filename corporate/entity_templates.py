@@ -53,8 +53,8 @@ class EntityTemplate(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        verbose_name = "Entity Template"
-        verbose_name_plural = "Entity Templates"
+        verbose_name = "🏭 Entity Template"
+        verbose_name_plural = "🏭 Entity Templates"
         ordering = ['-usage_count', 'name']
     
     def __str__(self):
@@ -131,8 +131,8 @@ class QuickAddPreset(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        verbose_name = "Quick Add Preset"
-        verbose_name_plural = "Quick Add Presets"
+        verbose_name = "⚡ Quick Add Preset"
+        verbose_name_plural = "⚡ Quick Add Presets"
         ordering = ['-is_favorite', '-usage_count', 'name']
     
     def __str__(self):
