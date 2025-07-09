@@ -1,0 +1,309 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Organogram Printing - SIRIUS{% endblock %}
+
+{% block extrahead %}
+    <link rel="stylesheet" href="{% static 'admin/css/organogram_printing.css' %}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="organogram-printing-container">
+    <!-- Header -->
+    <div class="printing-header">
+        <div class="header-content">
+            <h1 class="page-title">
+                <span class="title-icon">🖨️</span>
+                Organogram Printing & Reports
+            </h1>
+            <p class="page-subtitle">Generate professional organogram reports and documentation</p>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="printing-content">
+        <!-- Selection Panel -->
+        <div class="selection-panel">
+            <div class="panel-header">
+                <h2>📋 Report Configuration</h2>
+                <p>Configure your organogram report settings</p>
+            </div>
+
+            <div class="selection-form">
+                <!-- Report Type -->
+                <div class="form-group">
+                    <label for="report-type">Report Type</label>
+                    <select id="report-type" class="form-control">
+                        <option value="structure">Structure Report</option>
+                        <option value="party">Party Report</option>
+                        <option value="comprehensive">Comprehensive Analysis</option>
+                        <option value="compliance">Compliance Report</option>
+                    </select>
+                </div>
+
+                <!-- Structure Selection -->
+                <div class="form-group" id="structure-selection">
+                    <label for="structure-select">Select Structure</label>
+                    <select id="structure-select" class="form-control">
+                        <option value="">Choose a structure...</option>
+                        {% for structure in structures %}
+                            <option value="{{ structure.id }}">{{ structure.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Party Selection -->
+                <div class="form-group" id="party-selection" style="display: none;">
+                    <label for="party-select">Select Party</label>
+                    <select id="party-select" class="form-control">
+                        <option value="">Choose a party...</option>
+                        {% for party in parties %}
+                            <option value="{{ party.id }}">{{ party.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Template Selection -->
+                <div class="form-group">
+                    <label for="template-select">Report Template</label>
+                    <select id="template-select" class="form-control">
+                        {% for template in print_templates %}
+                            <option value="{{ template.id }}">{{ template.name }} - {{ template.description }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Format Selection -->
+                <div class="form-group">
+                    <label for="format-select">Export Format</label>
+                    <select id="format-select" class="form-control">
+                        {% for format in export_formats %}
+                            <option value="{{ format.id }}">{{ format.name }} - {{ format.description }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Report Options -->
+                <div class="form-group">
+                    <label>Report Options</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="include-statistics" checked>
+                            <span class="checkmark"></span>
+                            Include Statistics
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="include-hierarchy" checked>
+                            <span class="checkmark"></span>
+                            Include Hierarchy Diagram
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="include-ownership-details" checked>
+                            <span class="checkmark"></span>
+                            Include Ownership Details
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="include-jurisdictions">
+                            <span class="checkmark"></span>
+                            Include Jurisdiction Analysis
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="include-compliance">
+                            <span class="checkmark"></span>
+                            Include Compliance Notes
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="include-recommendations">
+                            <span class="checkmark"></span>
+                            Include Recommendations
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Page Settings -->
+                <div class="form-group">
+                    <label for="page-size">Page Size</label>
+                    <select id="page-size" class="form-control">
+                        <option value="A4">A4 (210 × 297 mm)</option>
+                        <option value="Letter">Letter (8.5 × 11 in)</option>
+                        <option value="Legal">Legal (8.5 × 14 in)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="page-orientation">Orientation</label>
+                    <select id="page-orientation" class="form-control">
+                        <option value="portrait">Portrait</option>
+                        <option value="landscape">Landscape</option>
+                    </select>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="action-buttons">
+                    <button id="preview-btn" class="btn btn-secondary">
+                        <span class="btn-icon">👁️</span>
+                        Preview Report
+                    </button>
+                    <button id="generate-btn" class="btn btn-primary">
+                        <span class="btn-icon">📄</span>
+                        Generate Report
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Preview Panel -->
+        <div class="preview-panel">
+            <div class="panel-header">
+                <h2>👁️ Report Preview</h2>
+                <p>Preview your report before generating</p>
+            </div>
+
+            <div class="preview-content" id="preview-content">
+                <div class="preview-placeholder">
+                    <div class="placeholder-icon">📄</div>
+                    <h3>No Preview Available</h3>
+                    <p>Select a structure or party and click "Preview Report" to see a preview of your report.</p>
+                </div>
+            </div>
+
+            <div class="preview-actions" id="preview-actions" style="display: none;">
+                <button id="print-preview-btn" class="btn btn-outline">
+                    <span class="btn-icon">🖨️</span>
+                    Print Preview
+                </button>
+                <button id="download-preview-btn" class="btn btn-outline">
+                    <span class="btn-icon">💾</span>
+                    Download Preview
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+        <div class="quick-action-card">
+            <div class="card-icon">⚡</div>
+            <h3>Quick Structure Report</h3>
+            <p>Generate a standard structure report with default settings</p>
+            <button class="btn btn-outline" onclick="quickStructureReport()">Generate</button>
+        </div>
+        
+        <div class="quick-action-card">
+            <div class="card-icon">👥</div>
+            <h3>Party Portfolio Report</h3>
+            <p>Generate a comprehensive party ownership portfolio</p>
+            <button class="btn btn-outline" onclick="quickPartyReport()">Generate</button>
+        </div>
+        
+        <div class="quick-action-card">
+            <div class="card-icon">📊</div>
+            <h3>Compliance Summary</h3>
+            <p>Generate a compliance-focused summary report</p>
+            <button class="btn btn-outline" onclick="quickComplianceReport()">Generate</button>
+        </div>
+        
+        <div class="quick-action-card">
+            <div class="card-icon">🔍</div>
+            <h3>Detailed Analysis</h3>
+            <p>Generate a comprehensive detailed analysis report</p>
+            <button class="btn btn-outline" onclick="quickDetailedReport()">Generate</button>
+        </div>
+    </div>
+
+    <!-- Recent Reports -->
+    <div class="recent-reports">
+        <div class="section-header">
+            <h2>📁 Recent Reports</h2>
+            <p>Your recently generated reports</p>
+        </div>
+        
+        <div class="reports-grid" id="recent-reports-grid">
+            <div class="report-item">
+                <div class="report-icon">📄</div>
+                <div class="report-info">
+                    <h4>Structure Report - International Holding</h4>
+                    <p>Generated 2 hours ago • PDF • 2.3 MB</p>
+                </div>
+                <div class="report-actions">
+                    <button class="btn-icon-small" title="Download">💾</button>
+                    <button class="btn-icon-small" title="Share">📤</button>
+                    <button class="btn-icon-small" title="Delete">🗑️</button>
+                </div>
+            </div>
+            
+            <div class="report-item">
+                <div class="report-icon">📊</div>
+                <div class="report-info">
+                    <h4>Party Report - John Smith</h4>
+                    <p>Generated yesterday • Excel • 1.8 MB</p>
+                </div>
+                <div class="report-actions">
+                    <button class="btn-icon-small" title="Download">💾</button>
+                    <button class="btn-icon-small" title="Share">📤</button>
+                    <button class="btn-icon-small" title="Delete">🗑️</button>
+                </div>
+            </div>
+            
+            <div class="report-item">
+                <div class="report-icon">📋</div>
+                <div class="report-info">
+                    <h4>Compliance Report - Q4 2024</h4>
+                    <p>Generated 3 days ago • PDF • 4.1 MB</p>
+                </div>
+                <div class="report-actions">
+                    <button class="btn-icon-small" title="Download">💾</button>
+                    <button class="btn-icon-small" title="Share">📤</button>
+                    <button class="btn-icon-small" title="Delete">🗑️</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div id="loading-modal" class="modal">
+    <div class="modal-content loading-content">
+        <div class="loading-spinner"></div>
+        <h3>Generating Report...</h3>
+        <p id="loading-message">Please wait while we generate your report.</p>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Success Modal -->
+<div id="success-modal" class="modal">
+    <div class="modal-content success-content">
+        <div class="success-icon">✅</div>
+        <h3>Report Generated Successfully!</h3>
+        <p id="success-message">Your report has been generated and is ready for download.</p>
+        <div class="modal-actions">
+            <button id="download-report-btn" class="btn btn-primary">
+                <span class="btn-icon">💾</span>
+                Download Report
+            </button>
+            <button class="btn btn-secondary modal-close">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Error Modal -->
+<div id="error-modal" class="modal">
+    <div class="modal-content error-content">
+        <div class="error-icon">❌</div>
+        <h3>Report Generation Failed</h3>
+        <p id="error-message">An error occurred while generating your report.</p>
+        <div class="modal-actions">
+            <button class="btn btn-primary modal-close">Try Again</button>
+            <button class="btn btn-secondary modal-close">Close</button>
+        </div>
+    </div>
+</div>
+
+<script src="{% static 'admin/js/organogram_printing.js' %}"></script>
+{% endblock %}
+

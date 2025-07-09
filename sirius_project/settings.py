@@ -26,7 +26,7 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-dev-key-change-in-pro
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=lambda v: [s.strip() for s in v.split(',')])
+ALLOWED_HOSTS = ['*']  # Allow all hosts for development
 
 
 # Application definition
@@ -57,6 +57,12 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+# CSRF settings for external domains
+CSRF_TRUSTED_ORIGINS = [
+    'https://*.manusvm.computer',
+    'https://8000-i7b2jxpmt1ri0rp3ozxr2-35e94e54.manusvm.computer',
 ]
 
 ROOT_URLCONF = 'sirius_project.urls'

@@ -1,0 +1,394 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Organogram Builder - {{ structure.name|default:"New Structure" }}{% endblock %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <link rel="stylesheet" type="text/css" href="{% static 'admin/css/organogram_builder.css' %}">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="organogram-builder-container">
+    <!-- Header -->
+    <div class="builder-header">
+        <div class="header-left">
+            <h1>🌳 Organogram Builder</h1>
+            <div class="structure-info">
+                {% if structure %}
+                    <span class="structure-name">{{ structure.name }}</span>
+                    <span class="structure-status status-{{ structure.status|lower }}">{{ structure.get_status_display }}</span>
+                {% else %}
+                    <span class="structure-name">New Structure</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="header-actions">
+            <button id="validate-btn" class="btn btn-success">
+                <span class="icon">✅</span> Validate
+            </button>
+            <button id="save-btn" class="btn btn-primary">
+                <span class="icon">💾</span> Save
+            </button>
+            <button id="print-btn" class="btn btn-secondary">
+                <span class="icon">🖨️</span> Print
+            </button>
+            <a href="{% url 'admin:corporate_structure_changelist' %}" class="btn btn-outline">
+                <span class="icon">🔙</span> Back
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="builder-main">
+        <!-- Entity Library Panel -->
+        <div class="library-panel">
+            <div class="panel-header">
+                <h3>📚 Entity Library</h3>
+                <div class="panel-actions">
+                    <button id="add-entity-btn" class="btn btn-sm btn-primary">
+                        <span class="icon">➕</span> Add Entity
+                    </button>
+                    <button id="refresh-library-btn" class="btn btn-sm btn-outline">
+                        <span class="icon">🔄</span> Refresh
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Search -->
+            <div class="library-search">
+                <input type="text" id="library-search" placeholder="🔍 Search entities and parties..." class="form-control">
+            </div>
+            
+            <!-- Tabs -->
+            <div class="library-tabs">
+                <button class="tab-btn active" data-tab="entities">🏢 Entities</button>
+                <button class="tab-btn" data-tab="parties">👤 Parties</button>
+            </div>
+            
+            <!-- Entities Tab -->
+            <div class="library-content" id="entities-tab">
+                <div class="library-items" id="entities-list">
+                    {% for entity in available_entities %}
+                    <div class="library-item entity-item" 
+                         data-type="entity" 
+                         data-id="{{ entity.id }}"
+                         data-name="{{ entity.name }}"
+                         data-entity-type="{{ entity.entity_type }}"
+                         data-jurisdiction="{{ entity.jurisdiction }}"
+                         data-total-shares="{{ entity.total_shares|default:'' }}">
+                        <div class="item-icon">{{ entity.icon }}</div>
+                        <div class="item-info">
+                            <div class="item-name">{{ entity.name }}</div>
+                            <div class="item-details">
+                                <span class="item-type">{{ entity.entity_type }}</span>
+                                <span class="item-jurisdiction">{{ entity.jurisdiction }}</span>
+                            </div>
+                            {% if entity.total_shares %}
+                            <div class="item-shares">📊 {{ entity.total_shares|floatformat:0 }} shares</div>
+                            {% endif %}
+                        </div>
+                        <div class="item-actions">
+                            <button class="btn btn-xs btn-primary add-to-organogram" title="Add to Organogram">
+                                <span class="icon">➕</span>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <!-- Parties Tab -->
+            <div class="library-content" id="parties-tab" style="display: none;">
+                <div class="library-items" id="parties-list">
+                    {% for party in available_parties %}
+                    <div class="library-item party-item" 
+                         data-type="party" 
+                         data-id="{{ party.id }}"
+                         data-name="{{ party.name }}"
+                         data-nationality="{{ party.nationality }}">
+                        <div class="item-icon">{{ party.icon }}</div>
+                        <div class="item-info">
+                            <div class="item-name">{{ party.name }}</div>
+                            <div class="item-details">
+                                {% if party.nationality %}
+                                <span class="item-nationality">{{ party.nationality }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="item-actions">
+                            <button class="btn btn-xs btn-primary add-to-organogram" title="Add to Organogram">
+                                <span class="icon">➕</span>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Organogram Canvas -->
+        <div class="organogram-canvas">
+            <div class="canvas-header">
+                <h3>🌳 Corporate Structure</h3>
+                <div class="canvas-tools">
+                    <button id="zoom-in-btn" class="btn btn-sm btn-outline" title="Zoom In">
+                        <span class="icon">🔍+</span>
+                    </button>
+                    <button id="zoom-out-btn" class="btn btn-sm btn-outline" title="Zoom Out">
+                        <span class="icon">🔍-</span>
+                    </button>
+                    <button id="fit-to-screen-btn" class="btn btn-sm btn-outline" title="Fit to Screen">
+                        <span class="icon">📐</span>
+                    </button>
+                    <button id="auto-layout-btn" class="btn btn-sm btn-primary" title="Auto Layout">
+                        <span class="icon">🎯</span>
+                    </button>
+                    <button id="clear-canvas-btn" class="btn btn-sm btn-danger" title="Clear All">
+                        <span class="icon">🗑️</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- SVG Container -->
+            <div class="canvas-container">
+                <svg id="organogram-svg" width="100%" height="100%">
+                    <defs>
+                        <!-- Arrow markers for connections -->
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+                                refX="9" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#666" />
+                        </marker>
+                        
+                        <!-- Gradient definitions -->
+                        <linearGradient id="entityGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+764                            <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+                        </linearGradient>
+                        
+                        <linearGradient id="partyGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" style="stop-color:#f093fb;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#f5576c;stop-opacity:1" />
+                        </linearGradient>
+                    </defs>
+                    
+                    <!-- Background grid -->
+                    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                        <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#f0f0f0" stroke-width="1"/>
+                    </pattern>
+                    <rect width="100%" height="100%" fill="url(#grid)" />
+                    
+                    <!-- Main group for zoom/pan -->
+                    <g id="main-group">
+                        <!-- Connections layer -->
+                        <g id="connections-layer"></g>
+                        
+                        <!-- Nodes layer -->
+                        <g id="nodes-layer"></g>
+                    </g>
+                </svg>
+                
+                <!-- Canvas overlay for interactions -->
+                <div class="canvas-overlay">
+                    <!-- Drop zone indicator -->
+                    <div id="drop-zone" class="drop-zone" style="display: none;">
+                        <div class="drop-zone-content">
+                            <div class="drop-zone-icon">📋</div>
+                            <div class="drop-zone-text">Drop here to add to organogram</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Loading indicator -->
+                    <div id="loading-indicator" class="loading-indicator" style="display: none;">
+                        <div class="loading-spinner"></div>
+                        <div class="loading-text">Processing...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Properties Panel -->
+        <div class="properties-panel">
+            <div class="panel-header">
+                <h3>⚙️ Properties</h3>
+                <button id="close-properties-btn" class="btn btn-sm btn-outline">
+                    <span class="icon">✖️</span>
+                </button>
+            </div>
+            
+            <div class="properties-content" id="properties-content">
+                <div class="no-selection">
+                    <div class="no-selection-icon">👆</div>
+                    <div class="no-selection-text">Select a node or connection to edit properties</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+        <div class="status-left">
+            <span id="status-message">Ready</span>
+        </div>
+        <div class="status-right">
+            <span id="nodes-count">Nodes: 0</span>
+            <span id="connections-count">Connections: 0</span>
+            <span id="validation-status">Validation: Not checked</span>
+        </div>
+    </div>
+</div>
+
+<!-- Modals -->
+
+<!-- Add Entity Modal -->
+<div id="add-entity-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>➕ Add New Entity</h3>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="add-entity-form">
+                <div class="form-group">
+                    <label for="entity-name">Entity Name *</label>
+                    <input type="text" id="entity-name" name="name" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="entity-type">Entity Type *</label>
+                    <select id="entity-type" name="entity_type" class="form-control" required>
+                        <option value="">Select type...</option>
+                        <option value="TRUST">Trust</option>
+                        <option value="FOREIGN_TRUST">Foreign Trust</option>
+                        <option value="FUND">Fund</option>
+                        <option value="IBC">International Business Company</option>
+                        <option value="LLC_DISREGARDED">LLC Disregarded Entity</option>
+                        <option value="LLC_PARTNERSHIP">LLC Partnership</option>
+                        <option value="LLC_AS_CORP">LLC as a Corp</option>
+                        <option value="CORP">Corp</option>
+                        <option value="WYOMING_FOUNDATION">Wyoming Statutory Foundation</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="entity-jurisdiction">Jurisdiction *</label>
+                    <select id="entity-jurisdiction" name="jurisdiction" class="form-control" required>
+                        <option value="">Select jurisdiction...</option>
+                        <option value="US">United States</option>
+                        <option value="BS">Bahamas</option>
+                        <option value="BR">Brazil</option>
+                        <option value="BZ">Belize</option>
+                        <option value="VG">British Virgin Islands</option>
+                        <option value="KY">Cayman Islands</option>
+                        <option value="PA">Panama</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="entity-shares">Total Shares</label>
+                    <input type="number" id="entity-shares" name="total_shares" class="form-control" min="1">
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-outline" onclick="closeModal('add-entity-modal')">Cancel</button>
+            <button type="submit" form="add-entity-form" class="btn btn-primary">Create Entity</button>
+        </div>
+    </div>
+</div>
+
+<!-- Validation Results Modal -->
+<div id="validation-modal" class="modal" style="display: none;">
+    <div class="modal-content modal-large">
+        <div class="modal-header">
+            <h3>✅ Validation Results</h3>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="validation-results"></div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-primary" onclick="closeModal('validation-modal')">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Connection Properties Modal -->
+<div id="connection-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>🔗 Ownership Details</h3>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="connection-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="ownership-percentage">Ownership Percentage *</label>
+                        <input type="number" id="ownership-percentage" name="percentage" 
+                               class="form-control" min="0.01" max="100" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="ownership-shares">Shares</label>
+                        <input type="number" id="ownership-shares" name="shares" 
+                               class="form-control" min="1">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="corporate-name">Corporate Name</label>
+                        <input type="text" id="corporate-name" name="corporate_name" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="hash-number">Hash Number</label>
+                        <input type="text" id="hash-number" name="hash_number" class="form-control">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="share-value-usd">Share Value (USD)</label>
+                        <input type="number" id="share-value-usd" name="share_value_usd" 
+                               class="form-control" min="0.01" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label for="share-value-eur">Share Value (EUR)</label>
+                        <input type="number" id="share-value-eur" name="share_value_eur" 
+                               class="form-control" min="0.01" step="0.01">
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-outline" onclick="closeModal('connection-modal')">Cancel</button>
+            <button type="submit" form="connection-form" class="btn btn-primary">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script>
+    // Global variables
+    window.organogramData = {{ organogram_data|safe }};
+    window.structureId = {{ structure.id|default:"null" }};
+    window.availableEntities = {{ available_entities|safe }};
+    window.availableParties = {{ available_parties|safe }};
+    
+    // CSRF token for AJAX requests
+    window.csrfToken = '{{ csrf_token }}';
+</script>
+<script src="{% static 'admin/js/organogram_builder.js' %}"></script>
+
+{% endblock %}
+
+{% block extrajs %}
+    {{ block.super }}
+    <script>
+        // Initialize organogram builder when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.OrganogramBuilder) {
+                window.organogramBuilder = new OrganogramBuilder();
+                window.organogramBuilder.init();
+            }
+        });
+    </script>
+{% endblock %}
+

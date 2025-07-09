@@ -1,0 +1,362 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Ownership Matrix Visual - SIRIUS{% endblock %}
+
+{% block extrahead %}
+<link rel="stylesheet" href="{% static 'admin/css/organogram_builder.css' %}">
+<link rel="stylesheet" href="{% static 'admin/css/entity_library_enhanced.css' %}">
+<link rel="stylesheet" href="{% static 'admin/css/ownership_matrix_visual.css' %}">
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="ownership-matrix-visual">
+    <!-- Header Section -->
+    <div class="matrix-header">
+        <div class="header-content">
+            <h1 class="matrix-title">
+                <span class="icon">🔗</span>
+                Ownership Matrix Visual
+            </h1>
+            <div class="header-actions">
+                <button class="btn btn-primary" id="create-ownership-btn">
+                    <span class="icon">➕</span>
+                    Create Ownership
+                </button>
+                <button class="btn btn-secondary" id="validate-matrix-btn">
+                    <span class="icon">✅</span>
+                    Validate Matrix
+                </button>
+                <button class="btn btn-info" id="export-matrix-btn">
+                    <span class="icon">📊</span>
+                    Export Matrix
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Control Panel -->
+    <div class="control-panel">
+        <div class="panel-section">
+            <h3>Matrix Controls</h3>
+            <div class="controls-grid">
+                <div class="control-group">
+                    <label for="structure-select">Structure:</label>
+                    <select id="structure-select" class="form-control">
+                        <option value="">All Structures</option>
+                        {% for structure in structures %}
+                        <option value="{{ structure.id }}">{{ structure.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label for="view-mode">View Mode:</label>
+                    <select id="view-mode" class="form-control">
+                        <option value="matrix">Matrix View</option>
+                        <option value="network">Network View</option>
+                        <option value="hierarchy">Hierarchy View</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label for="filter-threshold">Min Ownership %:</label>
+                    <input type="range" id="filter-threshold" min="0" max="100" value="0" class="form-control">
+                    <span id="threshold-value">0%</span>
+                </div>
+                
+                <div class="control-group">
+                    <label for="show-parties">Show Parties:</label>
+                    <input type="checkbox" id="show-parties" checked class="form-control">
+                </div>
+            </div>
+        </div>
+        
+        <div class="panel-section">
+            <h3>Matrix Statistics</h3>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <span class="stat-label">Total Ownerships:</span>
+                    <span class="stat-value" id="total-ownerships">{{ total_ownerships }}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Entities in Matrix:</span>
+                    <span class="stat-value" id="entities-count">{{ entities_count }}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Parties in Matrix:</span>
+                    <span class="stat-value" id="parties-count">{{ parties_count }}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Validation Status:</span>
+                    <span class="stat-value" id="validation-status">
+                        <span class="status-indicator pending">Pending</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Matrix Visualization Container -->
+    <div class="matrix-container">
+        <div class="matrix-tabs">
+            <button class="matrix-tab active" data-tab="visual">Visual Matrix</button>
+            <button class="matrix-tab" data-tab="table">Table View</button>
+            <button class="matrix-tab" data-tab="network">Network Graph</button>
+        </div>
+
+        <!-- Visual Matrix Tab -->
+        <div class="matrix-content active" id="visual-tab">
+            <div class="matrix-visual">
+                <div class="matrix-legend">
+                    <div class="legend-item">
+                        <div class="legend-color ownership-high"></div>
+                        <span>High Ownership (>50%)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color ownership-medium"></div>
+                        <span>Medium Ownership (25-50%)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color ownership-low"></div>
+                        <span>Low Ownership (<25%)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color party-ownership"></div>
+                        <span>Party Ownership</span>
+                    </div>
+                </div>
+                
+                <div class="matrix-grid-container">
+                    <div id="ownership-matrix-grid">
+                        <!-- Matrix grid will be generated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Table View Tab -->
+        <div class="matrix-content" id="table-tab">
+            <div class="table-container">
+                <table class="ownership-table">
+                    <thead>
+                        <tr>
+                            <th>Owner</th>
+                            <th>Owned Entity</th>
+                            <th>Ownership %</th>
+                            <th>Structure</th>
+                            <th>Type</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ownership-table-body">
+                        {% for ownership in ownerships %}
+                        <tr data-ownership-id="{{ ownership.id }}">
+                            <td class="owner-cell">
+                                {% if ownership.owner_entity %}
+                                    <span class="entity-badge">{{ ownership.owner_entity.name }}</span>
+                                {% elif ownership.owner_ubo %}
+                                    <span class="party-badge">{{ ownership.owner_ubo.name }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="owned-cell">
+                                <span class="entity-badge">{{ ownership.owned_entity.name }}</span>
+                            </td>
+                            <td class="percentage-cell">
+                                <span class="percentage-value">{{ ownership.ownership_percentage|floatformat:2 }}%</span>
+                            </td>
+                            <td class="structure-cell">
+                                {% if ownership.structure %}
+                                    <span class="structure-badge">{{ ownership.structure.name }}</span>
+                                {% else %}
+                                    <span class="no-structure">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="type-cell">
+                                {% if ownership.owner_entity %}
+                                    <span class="type-badge entity">Entity</span>
+                                {% else %}
+                                    <span class="type-badge party">Party</span>
+                                {% endif %}
+                            </td>
+                            <td class="actions-cell">
+                                <button class="btn-small edit-ownership" data-ownership-id="{{ ownership.id }}">
+                                    Edit
+                                </button>
+                                <button class="btn-small delete-ownership" data-ownership-id="{{ ownership.id }}">
+                                    Delete
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Network Graph Tab -->
+        <div class="matrix-content" id="network-tab">
+            <div class="network-container">
+                <div class="network-controls">
+                    <button class="btn btn-small" id="center-network">Center</button>
+                    <button class="btn btn-small" id="zoom-in">Zoom In</button>
+                    <button class="btn btn-small" id="zoom-out">Zoom Out</button>
+                    <button class="btn btn-small" id="reset-positions">Reset</button>
+                </div>
+                <div id="network-graph">
+                    <!-- Network graph will be generated by D3.js -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modals -->
+<!-- Create/Edit Ownership Modal -->
+<div id="ownership-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="ownership-modal-title">Create Ownership Relationship</h2>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="ownership-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="owner-type">Owner Type:</label>
+                        <select id="owner-type" name="owner_type" class="form-control" required>
+                            <option value="">Select Owner Type</option>
+                            <option value="entity">Entity</option>
+                            <option value="party">Party</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="owner-select">Owner:</label>
+                        <select id="owner-select" name="owner_id" class="form-control" required>
+                            <option value="">Select Owner</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="owned-entity">Owned Entity:</label>
+                        <select id="owned-entity" name="owned_entity_id" class="form-control" required>
+                            <option value="">Select Owned Entity</option>
+                            {% for entity in entities %}
+                            <option value="{{ entity.id }}">{{ entity.name }} ({{ entity.entity_type }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="ownership-percentage">Ownership Percentage:</label>
+                        <input type="number" id="ownership-percentage" name="ownership_percentage" 
+                               class="form-control" min="0" max="100" step="0.01" required>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="structure-select-modal">Structure (Optional):</label>
+                        <select id="structure-select-modal" name="structure_id" class="form-control">
+                            <option value="">No Structure</option>
+                            {% for structure in structures %}
+                            <option value="{{ structure.id }}">{{ structure.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="ownership-notes">Notes:</label>
+                        <textarea id="ownership-notes" name="notes" class="form-control" rows="3"></textarea>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('ownership-modal')">Cancel</button>
+            <button class="btn btn-primary" id="save-ownership-btn">Save Ownership</button>
+        </div>
+    </div>
+</div>
+
+<!-- Validation Results Modal -->
+<div id="validation-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Matrix Validation Results</h2>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="validation-results">
+                <!-- Validation results will be populated by JavaScript -->
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('validation-modal')">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Export Options Modal -->
+<div id="export-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Export Ownership Matrix</h2>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="export-options">
+                <div class="export-option">
+                    <input type="radio" id="export-csv" name="export_format" value="csv" checked>
+                    <label for="export-csv">CSV Format</label>
+                </div>
+                <div class="export-option">
+                    <input type="radio" id="export-excel" name="export_format" value="excel">
+                    <label for="export-excel">Excel Format</label>
+                </div>
+                <div class="export-option">
+                    <input type="radio" id="export-pdf" name="export_format" value="pdf">
+                    <label for="export-pdf">PDF Report</label>
+                </div>
+                <div class="export-option">
+                    <input type="radio" id="export-json" name="export_format" value="json">
+                    <label for="export-json">JSON Data</label>
+                </div>
+            </div>
+            
+            <div class="export-settings">
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="include-parties" checked>
+                        Include Party Ownerships
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="include-zero-ownership">
+                        Include Zero Ownership
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="include-metadata" checked>
+                        Include Metadata
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('export-modal')">Cancel</button>
+            <button class="btn btn-primary" id="confirm-export-btn">Export</button>
+        </div>
+    </div>
+</div>
+
+<script src="{% static 'admin/js/ownership_matrix_visual.js' %}"></script>
+{% endblock %}
+

@@ -1,141 +1,60 @@
 from django.contrib import admin
-from .models import (
-    Entity, Structure, EntityOwnership, ValidationRule
-)
+from .models import Entity, Structure, EntityOwnership
 
+# Import the new organogram admin
+from .admin_organogram import StructureOrganogramAdmin, EntityLibraryAdmin
+from .entity_templates import EntityTemplate, QuickAddPreset
 
-@admin.register(Entity)
-class EntityAdmin(admin.ModelAdmin):
-    list_display = [
-        'name', 'entity_type', 'jurisdiction', 'total_shares', 'active'
-    ]
-    list_filter = ['entity_type', 'jurisdiction', 'active', 'created_at']
-    search_fields = ['name', 'tax_classification']
-    fieldsets = [
+# Register the enhanced admin classes
+admin.site.register(Structure, StructureOrganogramAdmin)
+admin.site.register(Entity, EntityLibraryAdmin)
+
+# Register template models
+@admin.register(EntityTemplate)
+class EntityTemplateAdmin(admin.ModelAdmin):
+    list_display = ['name', 'category', 'jurisdiction', 'entity_type', 'usage_count', 'is_active']
+    list_filter = ['category', 'jurisdiction', 'is_active']
+    search_fields = ['name', 'description', 'entity_type']
+    readonly_fields = ['usage_count', 'created_at', 'updated_at']
+    
+    fieldsets = (
         ('Basic Information', {
-            'fields': ['name', 'entity_type', 'tax_classification']
+            'fields': ('name', 'category', 'jurisdiction', 'entity_type', 'description')
         }),
-        ('Jurisdiction', {
-            'fields': ['jurisdiction', 'us_state', 'br_state']
-        }),
-        ('Shares', {
-            'fields': ['total_shares']
-        }),
-        ('Implementation', {
-            'fields': ['implementation_templates', 'implementation_time', 'complexity']
-        }),
-        ('Tax Information', {
-            'fields': ['tax_impact_usa', 'tax_impact_brazil', 'tax_impact_others'],
-            'classes': ['collapse']
-        }),
-        ('Privacy & Protection', {
-            'fields': ['confidentiality_level', 'asset_protection', 'privacy_impact', 'privacy_score'],
-            'classes': ['collapse']
-        }),
-        ('Banking & Compliance', {
-            'fields': ['banking_relation_score', 'compliance_score', 'banking_facility'],
-            'classes': ['collapse']
-        }),
-        ('Documentation', {
-            'fields': ['required_documentation', 'documents_url', 'required_forms_usa', 'required_forms_brazil'],
-            'classes': ['collapse']
+        ('Template Configuration', {
+            'fields': ('default_name_pattern', 'default_attributes', 'required_documents', 'typical_uses')
         }),
         ('Status', {
-            'fields': ['active']
+            'fields': ('is_active', 'usage_count')
         }),
-    ]
-    ordering = ['name']
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
 
-
-@admin.register(Structure)
-class StructureAdmin(admin.ModelAdmin):
-    list_display = [
-        'name', 'status', 'get_entities_count', 'created_at'
-    ]
-    list_filter = ['status', 'created_at']
-    search_fields = ['name', 'description']
-    fieldsets = [
-        ('Basic Information', {
-            'fields': ['name', 'description', 'status']
-        }),
-        ('Calculated Fields', {
-            'fields': ['tax_impacts', 'severity_levels'],
-            'classes': ['collapse'],
-            'description': 'These fields are automatically calculated from validation rules'
-        }),
-    ]
-    ordering = ['-created_at']
+@admin.register(QuickAddPreset)
+class QuickAddPresetAdmin(admin.ModelAdmin):
+    list_display = ['name', 'template', 'quick_name_prefix', 'usage_count', 'is_favorite']
+    list_filter = ['template__category', 'template__jurisdiction', 'is_favorite']
+    search_fields = ['name', 'template__name', 'quick_name_prefix']
+    readonly_fields = ['usage_count', 'created_at', 'updated_at']
     
-    # Add custom CSS and JS for status colors
-    class Media:
-        css = {
-            'all': ('admin/css/structure_status_colors.css',)
-        }
-        js = ('admin/js/structure_status_colors.js',)
-
-    def get_entities_count(self, obj):
-        return obj.entity_ownerships.count()
-    get_entities_count.short_description = 'Entities'
-
-
-@admin.register(EntityOwnership)
-class EntityOwnershipAdmin(admin.ModelAdmin):
-    list_display = [
-        'structure', 'get_owner_name', 'owned_entity', 'ownership_percentage', 'owned_shares'
-    ]
-    list_filter = ['structure', 'owned_entity', 'created_at']
-    search_fields = ['structure__name', 'owned_entity__name', 'corporate_name']
-    fieldsets = [
+    fieldsets = (
         ('Basic Information', {
-            'fields': ['structure', 'owned_entity']
+            'fields': ('name', 'template')
         }),
-        ('Owner', {
-            'fields': ['owner_ubo', 'owner_entity'],
-            'description': 'Select either UBO or Entity as owner (not both)'
+        ('Quick Add Configuration', {
+            'fields': ('quick_name_prefix', 'auto_number', 'preset_attributes')
         }),
-        ('Corporate Identity', {
-            'fields': ['corporate_name', 'hash_number'],
-            'description': 'At least one of these fields must be filled'
+        ('Settings', {
+            'fields': ('is_favorite', 'usage_count')
         }),
-        ('Ownership', {
-            'fields': ['owned_shares', 'ownership_percentage'],
-            'description': 'Fill either shares or percentage - the other will be calculated automatically'
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
         }),
-        ('Share Valuation', {
-            'fields': ['share_value_usd', 'share_value_eur', 'total_value_usd', 'total_value_eur'],
-            'classes': ['collapse'],
-            'description': 'Total values are calculated automatically'
-        }),
-    ]
-    ordering = ['structure', 'owned_entity']
+    )
 
-    def get_owner_name(self, obj):
-        if obj.owner_ubo:
-            return str(obj.owner_ubo)
-        elif obj.owner_entity:
-            return str(obj.owner_entity)
-        return "No owner"
-    get_owner_name.short_description = 'Owner'
-
-
-@admin.register(ValidationRule)
-class ValidationRuleAdmin(admin.ModelAdmin):
-    list_display = [
-        'parent_entity', 'related_entity', 'relationship_type', 'severity'
-    ]
-    list_filter = ['relationship_type', 'severity', 'created_at']
-    search_fields = ['parent_entity__name', 'related_entity__name', 'description']
-    fieldsets = [
-        ('Entities', {
-            'fields': ['parent_entity', 'related_entity']
-        }),
-        ('Relationship', {
-            'fields': ['relationship_type', 'severity', 'description']
-        }),
-        ('Tax Information', {
-            'fields': ['tax_impacts'],
-            'description': 'Detailed tax implications of this entity combination'
-        }),
-    ]
-    ordering = ['parent_entity', 'related_entity']
-
+# Register other models
+admin.site.register(EntityOwnership)

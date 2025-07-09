@@ -27,6 +27,7 @@ def redirect_to_dashboard(request):
 urlpatterns = [
     path('', redirect_to_dashboard, name='home'),
     path('admin/dashboard/', include('dashboard.urls', namespace='dashboard')),
+    path('admin/corporate/', include('corporate.urls', namespace='corporate')),
     path('admin/', admin.site.urls),
 ]
 

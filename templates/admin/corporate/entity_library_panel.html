@@ -1,0 +1,962 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Entity Library - SIRIUS{% endblock %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <link rel="stylesheet" type="text/css" href="{% static 'admin/css/organogram_builder.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="entity-library-container">
+    <!-- Header -->
+    <div class="library-header">
+        <div class="header-left">
+            <h1>📚 Entity Library</h1>
+            <p class="header-subtitle">Manage entities and parties available for organogram building</p>
+        </div>
+        <div class="header-actions">
+            <button id="add-entity-btn" class="btn btn-primary">
+                <span class="icon">➕</span> Add Entity
+            </button>
+            <button id="templates-btn" class="btn btn-secondary">
+                <span class="icon">📋</span> Templates
+            </button>
+            <a href="{% url 'admin:corporate_structure_changelist' %}" class="btn btn-outline">
+                <span class="icon">🔙</span> Back to Structures
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="library-filters">
+        <form method="get" class="filters-form">
+            <div class="filter-group">
+                <label for="search">Search:</label>
+                <input type="text" id="search" name="search" value="{{ current_filters.search }}" 
+                       placeholder="Search entities and parties..." class="form-control">
+            </div>
+            <div class="filter-group">
+                <label for="entity_type">Entity Type:</label>
+                <select id="entity_type" name="entity_type" class="form-control">
+                    <option value="">All Types</option>
+                    {% for type in entity_types %}
+                    <option value="{{ type }}" {% if current_filters.entity_type == type %}selected{% endif %}>
+                        {{ type }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="jurisdiction">Jurisdiction:</label>
+                <select id="jurisdiction" name="jurisdiction" class="form-control">
+                    <option value="">All Jurisdictions</option>
+                    {% for jurisdiction in jurisdictions %}
+                    <option value="{{ jurisdiction }}" {% if current_filters.jurisdiction == jurisdiction %}selected{% endif %}>
+                        {{ jurisdiction }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-actions">
+                <button type="submit" class="btn btn-primary">Filter</button>
+                <a href="{% url 'admin:corporate_entity_library' %}" class="btn btn-outline">Clear</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Main Content -->
+    <div class="library-main">
+        <!-- Entities Section -->
+        <div class="library-section">
+            <div class="section-header">
+                <h2>🏢 Entities ({{ entities.count }})</h2>
+                <div class="section-actions">
+                    <button class="btn btn-sm btn-outline" onclick="toggleView('entities', 'grid')">
+                        <span class="icon">⊞</span> Grid
+                    </button>
+                    <button class="btn btn-sm btn-outline" onclick="toggleView('entities', 'list')">
+                        <span class="icon">☰</span> List
+                    </button>
+                </div>
+            </div>
+            
+            <div class="entities-grid" id="entities-container">
+                {% for entity in entities %}
+                <div class="entity-card" data-entity-id="{{ entity.id }}">
+                    <div class="card-header">
+                        <div class="entity-icon">
+                            {% if entity.entity_type == 'TRUST' or entity.entity_type == 'FOREIGN_TRUST' %}🛡️
+                            {% elif entity.entity_type == 'FUND' %}💰
+                            {% elif entity.entity_type == 'IBC' %}🏢
+                            {% elif entity.entity_type == 'LLC_DISREGARDED' %}🏛️
+                            {% elif entity.entity_type == 'LLC_PARTNERSHIP' %}🤝
+                            {% elif entity.entity_type == 'LLC_AS_CORP' %}🏢
+                            {% elif entity.entity_type == 'CORP' %}🏢
+                            {% elif entity.entity_type == 'WYOMING_FOUNDATION' %}🏛️
+                            {% else %}🏢{% endif %}
+                        </div>
+                        <div class="entity-info">
+                            <h3 class="entity-name">{{ entity.name }}</h3>
+                            <div class="entity-details">
+                                <span class="entity-type">{{ entity.get_entity_type_display }}</span>
+                                <span class="entity-jurisdiction">{{ entity.get_full_jurisdiction_display }}</span>
+                            </div>
+                        </div>
+                        <div class="card-actions">
+                            <button class="btn btn-xs btn-outline" onclick="showEntityStats({{ entity.id }})" title="Usage Statistics">
+                                <span class="icon">📊</span>
+                            </button>
+                            <button class="btn btn-xs btn-outline" onclick="duplicateEntity({{ entity.id }})" title="Duplicate">
+                                <span class="icon">📋</span>
+                            </button>
+                            <a href="{% url 'admin:corporate_entity_change' entity.id %}" class="btn btn-xs btn-primary" title="Edit">
+                                <span class="icon">✏️</span>
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <div class="card-body">
+                        {% if entity.total_shares %}
+                        <div class="entity-shares">
+                            <span class="label">Total Shares:</span>
+                            <span class="value">{{ entity.total_shares|floatformat:0 }}</span>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="entity-usage">
+                            <span class="label">Used in:</span>
+                            <span class="value usage-count">{{ entity.usage_count }} structure{{ entity.usage_count|pluralize }}</span>
+                        </div>
+                        
+                        <div class="entity-complexity">
+                            <span class="label">Complexity:</span>
+                            <div class="complexity-bar">
+                                {% for i in "12345" %}
+                                <div class="complexity-dot {% if entity.complexity >= i|add:0 %}active{% endif %}"></div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card-footer">
+                        <button class="btn btn-sm btn-primary add-to-organogram" 
+                                data-type="entity" 
+                                data-id="{{ entity.id }}"
+                                data-name="{{ entity.name }}"
+                                data-entity-type="{{ entity.entity_type }}"
+                                data-jurisdiction="{{ entity.get_full_jurisdiction_display }}"
+                                data-total-shares="{{ entity.total_shares|default:'' }}">
+                            <span class="icon">➕</span> Add to Organogram
+                        </button>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="empty-state">
+                    <div class="empty-icon">🏢</div>
+                    <h3>No entities found</h3>
+                    <p>No entities match your current filters. Try adjusting your search criteria or create a new entity.</p>
+                    <button class="btn btn-primary" onclick="openModal('add-entity-modal')">
+                        <span class="icon">➕</span> Create First Entity
+                    </button>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Parties Section -->
+        <div class="library-section">
+            <div class="section-header">
+                <h2>👤 Parties ({{ parties.count }})</h2>
+                <div class="section-actions">
+                    <a href="{% url 'admin:parties_party_add' %}" class="btn btn-sm btn-primary">
+                        <span class="icon">➕</span> Add Party
+                    </a>
+                </div>
+            </div>
+            
+            <div class="parties-grid" id="parties-container">
+                {% for party in parties %}
+                <div class="party-card" data-party-id="{{ party.id }}">
+                    <div class="card-header">
+                        <div class="party-icon">👤</div>
+                        <div class="party-info">
+                            <h3 class="party-name">{{ party.name }}</h3>
+                            <div class="party-details">
+                                {% if party.nationality %}
+                                <span class="party-nationality">{{ party.nationality }}</span>
+                                {% endif %}
+                                {% if party.tin %}
+                                <span class="party-tin">TIN: {{ party.tin }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="card-actions">
+                            <button class="btn btn-xs btn-outline" onclick="showPartyStats({{ party.id }})" title="Usage Statistics">
+                                <span class="icon">📊</span>
+                            </button>
+                            <a href="{% url 'admin:parties_party_change' party.id %}" class="btn btn-xs btn-primary" title="Edit">
+                                <span class="icon">✏️</span>
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <div class="card-body">
+                        {% if party.email %}
+                        <div class="party-email">
+                            <span class="label">Email:</span>
+                            <span class="value">{{ party.email }}</span>
+                        </div>
+                        {% endif %}
+                        
+                        {% if party.phone %}
+                        <div class="party-phone">
+                            <span class="label">Phone:</span>
+                            <span class="value">{{ party.phone }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="card-footer">
+                        <button class="btn btn-sm btn-primary add-to-organogram" 
+                                data-type="party" 
+                                data-id="{{ party.id }}"
+                                data-name="{{ party.name }}"
+                                data-nationality="{{ party.nationality|default:'' }}">
+                            <span class="icon">➕</span> Add to Organogram
+                        </button>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="empty-state">
+                    <div class="empty-icon">👤</div>
+                    <h3>No parties found</h3>
+                    <p>No parties are available. Create parties to use as owners in your structures.</p>
+                    <a href="{% url 'admin:parties_party_add' %}" class="btn btn-primary">
+                        <span class="icon">➕</span> Create First Party
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modals -->
+
+<!-- Add Entity Modal -->
+<div id="add-entity-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>➕ Add New Entity</h3>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="add-entity-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="entity-name">Entity Name *</label>
+                        <input type="text" id="entity-name" name="name" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="entity-type">Entity Type *</label>
+                        <select id="entity-type" name="entity_type" class="form-control" required>
+                            <option value="">Select type...</option>
+                            <option value="TRUST">Trust</option>
+                            <option value="FOREIGN_TRUST">Foreign Trust</option>
+                            <option value="FUND">Fund</option>
+                            <option value="IBC">International Business Company</option>
+                            <option value="LLC_DISREGARDED">LLC Disregarded Entity</option>
+                            <option value="LLC_PARTNERSHIP">LLC Partnership</option>
+                            <option value="LLC_AS_CORP">LLC as a Corp</option>
+                            <option value="CORP">Corp</option>
+                            <option value="WYOMING_FOUNDATION">Wyoming Statutory Foundation</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="entity-jurisdiction">Jurisdiction *</label>
+                        <select id="entity-jurisdiction" name="jurisdiction" class="form-control" required>
+                            <option value="">Select jurisdiction...</option>
+                            <option value="US">United States</option>
+                            <option value="BS">Bahamas</option>
+                            <option value="BR">Brazil</option>
+                            <option value="BZ">Belize</option>
+                            <option value="VG">British Virgin Islands</option>
+                            <option value="KY">Cayman Islands</option>
+                            <option value="PA">Panama</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="entity-shares">Total Shares</label>
+                        <input type="number" id="entity-shares" name="total_shares" class="form-control" min="1">
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-outline" onclick="closeModal('add-entity-modal')">Cancel</button>
+            <button type="submit" form="add-entity-form" class="btn btn-primary">Create Entity</button>
+        </div>
+    </div>
+</div>
+
+<!-- Entity Templates Modal -->
+<div id="templates-modal" class="modal" style="display: none;">
+    <div class="modal-content modal-large">
+        <div class="modal-header">
+            <h3>📋 Entity Templates</h3>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="templates-container">
+                <!-- Templates will be loaded here -->
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-primary" onclick="closeModal('templates-modal')">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Usage Statistics Modal -->
+<div id="stats-modal" class="modal" style="display: none;">
+    <div class="modal-content modal-large">
+        <div class="modal-header">
+            <h3>📊 Usage Statistics</h3>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="stats-container">
+                <!-- Statistics will be loaded here -->
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-primary" onclick="closeModal('stats-modal')">Close</button>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Entity Library Specific Styles */
+.entity-library-container {
+    padding: 20px;
+    background: #f8f9fa;
+    min-height: 100vh;
+}
+
+.library-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding: 20px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.header-subtitle {
+    margin: 5px 0 0 0;
+    color: #666;
+    font-size: 14px;
+}
+
+.library-filters {
+    margin-bottom: 30px;
+    padding: 20px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.filters-form {
+    display: flex;
+    gap: 20px;
+    align-items: end;
+    flex-wrap: wrap;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.filter-group label {
+    font-weight: 500;
+    color: #333;
+    font-size: 14px;
+}
+
+.filter-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.library-section {
+    margin-bottom: 40px;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.section-header h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #333;
+}
+
+.section-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.entities-grid,
+.parties-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+}
+
+.entity-card,
+.party-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.entity-card:hover,
+.party-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 15px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.entity-icon,
+.party-icon {
+    font-size: 24px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.entity-info,
+.party-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.entity-name,
+.party-name {
+    margin: 0 0 5px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.entity-details,
+.party-details {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.entity-type,
+.entity-jurisdiction,
+.party-nationality,
+.party-tin {
+    background: #f8f9fa;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #666;
+}
+
+.card-body {
+    padding: 15px;
+}
+
+.entity-shares,
+.entity-usage,
+.entity-complexity,
+.party-email,
+.party-phone {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 13px;
+}
+
+.label {
+    color: #666;
+    font-weight: 500;
+}
+
+.value {
+    color: #333;
+    font-weight: 600;
+}
+
+.usage-count {
+    color: #667eea;
+}
+
+.complexity-bar {
+    display: flex;
+    gap: 3px;
+}
+
+.complexity-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #e9ecef;
+    transition: background 0.2s ease;
+}
+
+.complexity-dot.active {
+    background: #667eea;
+}
+
+.card-footer {
+    padding: 15px;
+    border-top: 1px solid #e9ecef;
+    background: #f8f9fa;
+}
+
+.add-to-organogram {
+    width: 100%;
+}
+
+.empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 60px 20px;
+    color: #666;
+}
+
+.empty-icon {
+    font-size: 64px;
+    margin-bottom: 20px;
+}
+
+.empty-state h3 {
+    margin-bottom: 10px;
+    color: #333;
+}
+
+.empty-state p {
+    margin-bottom: 20px;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Templates Grid */
+.templates-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 15px;
+}
+
+.template-card {
+    padding: 15px;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    background: #f8f9fa;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.template-card:hover {
+    border-color: #667eea;
+    background: white;
+    transform: translateY(-1px);
+}
+
+.template-name {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 5px;
+}
+
+.template-description {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 10px;
+}
+
+.template-details {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.template-detail {
+    background: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 500;
+    color: #666;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .library-header {
+        flex-direction: column;
+        gap: 15px;
+        text-align: center;
+    }
+    
+    .filters-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .filter-group {
+        width: 100%;
+    }
+    
+    .entities-grid,
+    .parties-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .section-header {
+        flex-direction: column;
+        gap: 15px;
+        align-items: stretch;
+    }
+}
+</style>
+
+<script>
+// Global variables
+window.csrfToken = '{{ csrf_token }}';
+
+// Modal functions
+function openModal(modalId) {
+    document.getElementById(modalId).style.display = 'flex';
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+}
+
+// View toggle functions
+function toggleView(section, viewType) {
+    const container = document.getElementById(`${section}-container`);
+    if (viewType === 'grid') {
+        container.className = `${section}-grid`;
+    } else {
+        container.className = `${section}-list`;
+    }
+}
+
+// Entity functions
+function showEntityStats(entityId) {
+    fetch(`/admin/corporate/entity-library/api/entity-stats/${entityId}/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayEntityStats(data);
+            } else {
+                alert('Error loading statistics: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error loading statistics');
+        });
+}
+
+function displayEntityStats(data) {
+    const container = document.getElementById('stats-container');
+    
+    let html = `
+        <div class="stats-header">
+            <h4>🏢 ${data.entity.name}</h4>
+            <p>${data.entity.entity_type} • ${data.entity.jurisdiction}</p>
+        </div>
+        
+        <div class="stats-summary">
+            <div class="stat-item">
+                <div class="stat-value">${data.usage_statistics.total_structures}</div>
+                <div class="stat-label">Structures</div>
+            </div>
+        </div>
+    `;
+    
+    if (data.usage_statistics.structures.length > 0) {
+        html += '<div class="stats-details"><h5>Used in Structures:</h5>';
+        
+        data.usage_statistics.structures.forEach(structureData => {
+            html += `
+                <div class="structure-item">
+                    <div class="structure-header">
+                        <strong>${structureData.structure.name}</strong>
+                        <span class="structure-status">${structureData.structure.status}</span>
+                    </div>
+                    <div class="ownerships-list">
+            `;
+            
+            structureData.ownerships.forEach(ownership => {
+                html += `
+                    <div class="ownership-item">
+                        ${ownership.owner.icon} ${ownership.owner.name} owns ${ownership.percentage}%
+                    </div>
+                `;
+            });
+            
+            html += '</div></div>';
+        });
+        
+        html += '</div>';
+    }
+    
+    container.innerHTML = html;
+    openModal('stats-modal');
+}
+
+function duplicateEntity(entityId) {
+    if (!confirm('Create a duplicate of this entity?')) return;
+    
+    fetch(`/admin/corporate/entity-library/api/duplicate-entity/${entityId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': window.csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Entity duplicated successfully!');
+            location.reload();
+        } else {
+            alert('Error duplicating entity: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error duplicating entity');
+    });
+}
+
+// Party functions
+function showPartyStats(partyId) {
+    fetch(`/admin/corporate/entity-library/api/party-stats/${partyId}/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayPartyStats(data);
+            } else {
+                alert('Error loading statistics: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error loading statistics');
+        });
+}
+
+function displayPartyStats(data) {
+    const container = document.getElementById('stats-container');
+    
+    let html = `
+        <div class="stats-header">
+            <h4>👤 ${data.party.name}</h4>
+            <p>${data.party.nationality || 'No nationality specified'}</p>
+        </div>
+        
+        <div class="stats-summary">
+            <div class="stat-item">
+                <div class="stat-value">${data.usage_statistics.total_structures}</div>
+                <div class="stat-label">Structures</div>
+            </div>
+        </div>
+    `;
+    
+    if (data.usage_statistics.structures.length > 0) {
+        html += '<div class="stats-details"><h5>Ownership in Structures:</h5>';
+        
+        data.usage_statistics.structures.forEach(structureData => {
+            html += `
+                <div class="structure-item">
+                    <div class="structure-header">
+                        <strong>${structureData.structure.name}</strong>
+                        <span class="structure-status">${structureData.structure.status}</span>
+                    </div>
+                    <div class="ownerships-list">
+            `;
+            
+            structureData.ownerships.forEach(ownership => {
+                html += `
+                    <div class="ownership-item">
+                        Owns ${ownership.percentage}% of ${ownership.owned_entity.icon} ${ownership.owned_entity.name}
+                    </div>
+                `;
+            });
+            
+            html += '</div></div>';
+        });
+        
+        html += '</div>';
+    }
+    
+    container.innerHTML = html;
+    openModal('stats-modal');
+}
+
+// Templates functions
+function loadTemplates() {
+    fetch('/admin/corporate/entity-library/api/templates/')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayTemplates(data.templates);
+            } else {
+                alert('Error loading templates: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error loading templates');
+        });
+}
+
+function displayTemplates(templates) {
+    const container = document.getElementById('templates-container');
+    
+    let html = '<div class="templates-grid">';
+    
+    templates.forEach(template => {
+        html += `
+            <div class="template-card" onclick="createFromTemplate(${JSON.stringify(template).replace(/"/g, '&quot;')})">
+                <div class="template-name">${template.name}</div>
+                <div class="template-description">${template.description}</div>
+                <div class="template-details">
+                    <span class="template-detail">${template.entity_type}</span>
+                    <span class="template-detail">${template.jurisdiction}</span>
+                    ${template.total_shares ? `<span class="template-detail">${template.total_shares} shares</span>` : ''}
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function createFromTemplate(template) {
+    // Populate form with template data
+    document.getElementById('entity-name').value = template.name;
+    document.getElementById('entity-type').value = template.entity_type;
+    document.getElementById('entity-jurisdiction').value = template.jurisdiction;
+    document.getElementById('entity-shares').value = template.total_shares || '';
+    
+    closeModal('templates-modal');
+    openModal('add-entity-modal');
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    // Modal close handlers
+    document.querySelectorAll('.modal-close').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const modal = e.target.closest('.modal');
+            closeModal(modal.id);
+        });
+    });
+    
+    // Click outside to close modals
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal(modal.id);
+            }
+        });
+    });
+    
+    // Button handlers
+    document.getElementById('add-entity-btn').addEventListener('click', () => {
+        openModal('add-entity-modal');
+    });
+    
+    document.getElementById('templates-btn').addEventListener('click', () => {
+        loadTemplates();
+        openModal('templates-modal');
+    });
+    
+    // Form handlers
+    document.getElementById('add-entity-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        createNewEntity();
+    });
+});
+
+function createNewEntity() {
+    const form = document.getElementById('add-entity-form');
+    const formData = new FormData(form);
+    
+    const data = {
+        name: formData.get('name'),
+        entity_type: formData.get('entity_type'),
+        jurisdiction: formData.get('jurisdiction'),
+        total_shares: formData.get('total_shares') || null
+    };
+    
+    fetch('/admin/corporate/entity-library/api/create-entity/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': window.csrfToken
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert('Entity created successfully!');
+            closeModal('add-entity-modal');
+            form.reset();
+            location.reload();
+        } else {
+            alert('Error creating entity: ' + result.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error creating entity');
+    });
+}
+</script>
+
+{% endblock %}
+

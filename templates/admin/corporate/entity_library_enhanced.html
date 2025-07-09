@@ -1,0 +1,407 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Enhanced Entity Library - SIRIUS{% endblock %}
+
+{% block extrahead %}
+<link rel="stylesheet" href="{% static 'admin/css/organogram_builder.css' %}">
+<link rel="stylesheet" href="{% static 'admin/css/entity_library_enhanced.css' %}">
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="entity-library-enhanced">
+    <!-- Header Section -->
+    <div class="library-header">
+        <div class="header-content">
+            <h1 class="library-title">
+                <span class="icon">📚</span>
+                Enhanced Entity Library
+            </h1>
+            <div class="header-stats">
+                <div class="stat-card">
+                    <span class="stat-number">{{ stats.total_entities }}</span>
+                    <span class="stat-label">Entities</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number">{{ stats.total_parties }}</span>
+                    <span class="stat-label">Parties</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number">{{ stats.total_templates }}</span>
+                    <span class="stat-label">Templates</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number">{{ stats.total_structures }}</span>
+                    <span class="stat-label">Structures</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search and Filters Section -->
+    <div class="search-filters-section">
+        <div class="search-container">
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="Search entities, parties, templates..." 
+                       value="{{ current_filters.search }}" class="search-field">
+                <button type="button" id="search-btn" class="search-button">
+                    <span class="icon">🔍</span>
+                </button>
+            </div>
+            
+            <div class="filters-row">
+                <select id="category-filter" class="filter-select">
+                    <option value="">All Categories</option>
+                    {% for value, label in filter_options.categories %}
+                    <option value="{{ value }}" {% if current_filters.category == value %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                    {% endfor %}
+                </select>
+                
+                <select id="jurisdiction-filter" class="filter-select">
+                    <option value="">All Jurisdictions</option>
+                    {% for value, label in filter_options.jurisdictions %}
+                    <option value="{{ value }}" {% if current_filters.jurisdiction == value %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                    {% endfor %}
+                </select>
+                
+                <select id="entity-type-filter" class="filter-select">
+                    <option value="">All Entity Types</option>
+                    {% for entity_type in filter_options.entity_types %}
+                    <option value="{{ entity_type }}" {% if current_filters.entity_type == entity_type %}selected{% endif %}>
+                        {{ entity_type }}
+                    </option>
+                    {% endfor %}
+                </select>
+                
+                <button type="button" id="clear-filters-btn" class="clear-filters-btn">
+                    Clear Filters
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Tabs -->
+    <div class="content-tabs">
+        <div class="tab-navigation">
+            <button class="tab-btn active" data-tab="quick-add">⚡ Quick Add</button>
+            <button class="tab-btn" data-tab="templates">📋 Templates</button>
+            <button class="tab-btn" data-tab="entities">🏢 Entities</button>
+            <button class="tab-btn" data-tab="parties">👥 Parties</button>
+            <button class="tab-btn" data-tab="analytics">📊 Analytics</button>
+        </div>
+
+        <!-- Quick Add Tab -->
+        <div class="tab-content active" id="quick-add-tab">
+            <div class="quick-add-section">
+                <h2 class="section-title">Quick Add Presets</h2>
+                <div class="quick-presets-grid">
+                    {% for preset in quick_presets %}
+                    <div class="quick-preset-card" data-preset-id="{{ preset.id }}">
+                        <div class="preset-header">
+                            <h3 class="preset-name">{{ preset.name }}</h3>
+                            {% if preset.is_favorite %}
+                            <span class="favorite-badge">⭐</span>
+                            {% endif %}
+                        </div>
+                        <div class="preset-details">
+                            <p class="preset-template">Based on: {{ preset.template.name }}</p>
+                            <p class="preset-jurisdiction">{{ preset.template.get_jurisdiction_display }}</p>
+                            <p class="preset-usage">Used {{ preset.usage_count }} times</p>
+                        </div>
+                        <div class="preset-actions">
+                            <input type="text" class="custom-suffix-input" 
+                                   placeholder="Custom suffix (optional)">
+                            <button class="quick-add-btn" data-preset-id="{{ preset.id }}">
+                                Quick Add
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Templates Tab -->
+        <div class="tab-content" id="templates-tab">
+            <div class="templates-section">
+                <h2 class="section-title">Entity Templates</h2>
+                <div class="templates-grid">
+                    {% for template in templates_page %}
+                    <div class="template-card" data-template-id="{{ template.id }}">
+                        <div class="template-header">
+                            <h3 class="template-name">{{ template.name }}</h3>
+                            <span class="template-category">{{ template.get_category_display }}</span>
+                        </div>
+                        <div class="template-details">
+                            <p class="template-jurisdiction">
+                                <span class="icon">🌍</span>
+                                {{ template.get_jurisdiction_display }}
+                            </p>
+                            <p class="template-type">
+                                <span class="icon">🏢</span>
+                                {{ template.entity_type }}
+                            </p>
+                            <p class="template-usage">
+                                <span class="icon">📈</span>
+                                Used {{ template.usage_count }} times
+                            </p>
+                        </div>
+                        <div class="template-description">
+                            <p>{{ template.description|truncatewords:20 }}</p>
+                        </div>
+                        <div class="template-actions">
+                            <button class="template-details-btn" data-template-id="{{ template.id }}">
+                                View Details
+                            </button>
+                            <button class="create-from-template-btn" data-template-id="{{ template.id }}">
+                                Create Entity
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <!-- Templates Pagination -->
+                {% if templates_page.has_other_pages %}
+                <div class="pagination-container">
+                    <div class="pagination">
+                        {% if templates_page.has_previous %}
+                        <a href="?templates_page={{ templates_page.previous_page_number }}" class="page-link">Previous</a>
+                        {% endif %}
+                        
+                        <span class="page-info">
+                            Page {{ templates_page.number }} of {{ templates_page.paginator.num_pages }}
+                        </span>
+                        
+                        {% if templates_page.has_next %}
+                        <a href="?templates_page={{ templates_page.next_page_number }}" class="page-link">Next</a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Entities Tab -->
+        <div class="tab-content" id="entities-tab">
+            <div class="entities-section">
+                <h2 class="section-title">Existing Entities</h2>
+                <div class="entities-grid">
+                    {% for entity in entities_page %}
+                    <div class="entity-card" data-entity-id="{{ entity.id }}" draggable="true">
+                        <div class="entity-header">
+                            <h3 class="entity-name">{{ entity.name }}</h3>
+                            <span class="entity-type">{{ entity.entity_type }}</span>
+                        </div>
+                        <div class="entity-details">
+                            <p class="entity-jurisdiction">
+                                <span class="icon">🌍</span>
+                                {{ entity.jurisdiction }}
+                            </p>
+                            {% if entity.incorporation_date %}
+                            <p class="entity-date">
+                                <span class="icon">📅</span>
+                                {{ entity.incorporation_date|date:"M Y" }}
+                            </p>
+                            {% endif %}
+                        </div>
+                        <div class="entity-actions">
+                            <button class="entity-stats-btn" data-entity-id="{{ entity.id }}">
+                                View Stats
+                            </button>
+                            <button class="drag-handle">
+                                <span class="icon">⋮⋮</span>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <!-- Entities Pagination -->
+                {% if entities_page.has_other_pages %}
+                <div class="pagination-container">
+                    <div class="pagination">
+                        {% if entities_page.has_previous %}
+                        <a href="?entities_page={{ entities_page.previous_page_number }}" class="page-link">Previous</a>
+                        {% endif %}
+                        
+                        <span class="page-info">
+                            Page {{ entities_page.number }} of {{ entities_page.paginator.num_pages }}
+                        </span>
+                        
+                        {% if entities_page.has_next %}
+                        <a href="?entities_page={{ entities_page.next_page_number }}" class="page-link">Next</a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Parties Tab -->
+        <div class="tab-content" id="parties-tab">
+            <div class="parties-section">
+                <h2 class="section-title">Available Parties</h2>
+                <div class="parties-grid">
+                    {% for party in parties_page %}
+                    <div class="party-card" data-party-id="{{ party.id }}" draggable="true">
+                        <div class="party-header">
+                            <h3 class="party-name">{{ party.name }}</h3>
+                            <span class="party-type">{{ party.party_type }}</span>
+                        </div>
+                        <div class="party-details">
+                            {% if party.nationality %}
+                            <p class="party-nationality">
+                                <span class="icon">🏳️</span>
+                                {{ party.nationality }}
+                            </p>
+                            {% endif %}
+                            {% if party.date_of_birth %}
+                            <p class="party-birth">
+                                <span class="icon">🎂</span>
+                                {{ party.date_of_birth|date:"Y" }}
+                            </p>
+                            {% endif %}
+                        </div>
+                        <div class="party-actions">
+                            <button class="party-stats-btn" data-party-id="{{ party.id }}">
+                                View Stats
+                            </button>
+                            <button class="drag-handle">
+                                <span class="icon">⋮⋮</span>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <!-- Parties Pagination -->
+                {% if parties_page.has_other_pages %}
+                <div class="pagination-container">
+                    <div class="pagination">
+                        {% if parties_page.has_previous %}
+                        <a href="?parties_page={{ parties_page.previous_page_number }}" class="page-link">Previous</a>
+                        {% endif %}
+                        
+                        <span class="page-info">
+                            Page {{ parties_page.number }} of {{ parties_page.paginator.num_pages }}
+                        </span>
+                        
+                        {% if parties_page.has_next %}
+                        <a href="?parties_page={{ parties_page.next_page_number }}" class="page-link">Next</a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Analytics Tab -->
+        <div class="tab-content" id="analytics-tab">
+            <div class="analytics-section">
+                <h2 class="section-title">Library Analytics</h2>
+                
+                <div class="analytics-grid">
+                    <div class="analytics-card">
+                        <h3>Popular Jurisdictions</h3>
+                        <div class="chart-container">
+                            {% for jurisdiction in stats.popular_jurisdictions %}
+                            <div class="chart-bar">
+                                <span class="bar-label">{{ jurisdiction.jurisdiction }}</span>
+                                <div class="bar-fill" style="width: {{ jurisdiction.count|floatformat:0 }}%"></div>
+                                <span class="bar-value">{{ jurisdiction.count }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div class="analytics-card">
+                        <h3>Popular Entity Types</h3>
+                        <div class="chart-container">
+                            {% for entity_type in stats.popular_entity_types %}
+                            <div class="chart-bar">
+                                <span class="bar-label">{{ entity_type.entity_type|truncatechars:20 }}</span>
+                                <div class="bar-fill" style="width: {{ entity_type.count|floatformat:0 }}%"></div>
+                                <span class="bar-value">{{ entity_type.count }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modals -->
+<!-- Template Details Modal -->
+<div id="template-details-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Template Details</h2>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="template-details-content">
+                <!-- Content loaded via JavaScript -->
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('template-details-modal')">Close</button>
+            <button class="btn btn-primary" id="create-from-modal-btn">Create Entity</button>
+        </div>
+    </div>
+</div>
+
+<!-- Create Entity Modal -->
+<div id="create-entity-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Create Entity from Template</h2>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="create-entity-form">
+                <div class="form-group">
+                    <label for="entity-name">Entity Name:</label>
+                    <input type="text" id="entity-name" name="entity_name" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="custom-attributes">Custom Attributes (JSON):</label>
+                    <textarea id="custom-attributes" name="custom_attributes" class="form-control" rows="4">{}</textarea>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('create-entity-modal')">Cancel</button>
+            <button class="btn btn-primary" id="confirm-create-entity-btn">Create Entity</button>
+        </div>
+    </div>
+</div>
+
+<!-- Entity Stats Modal -->
+<div id="entity-stats-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Entity Statistics</h2>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="entity-stats-content">
+                <!-- Content loaded via JavaScript -->
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('entity-stats-modal')">Close</button>
+        </div>
+    </div>
+</div>
+
+<script src="{% static 'admin/js/entity_library_enhanced.js' %}"></script>
+{% endblock %}
+
